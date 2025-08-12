@@ -12,7 +12,7 @@ This codebase follows a monolithic architecture with front-end and back-end on s
 
 ```commandline
 ├───frontend
-└───mobileApp-backend
+└───backend
     ├───build
     │   ├───classes
     │   │   └───kotlin
