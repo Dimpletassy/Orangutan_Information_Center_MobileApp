@@ -10,6 +10,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 class IrrigationControl(context: Context) {
+    /* Where both "hardware" and database connectivity happens */
     val executor: Executor = Executors.newSingleThreadExecutor()
     val context = context
 

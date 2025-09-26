@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.oic.myapplication.nav.AppNav
+import com.oic.myapplication.services.database.databaseController
+import com.oic.myapplication.services.database.databasePractice
 import com.oic.myapplication.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,6 +24,7 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 AppNav(navController = rememberNavController())
             }
+            databasePractice()
         }
     }
 }
