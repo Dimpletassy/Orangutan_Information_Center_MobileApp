@@ -21,4 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Orangutan_Information_Center_MobileApp"
 include(":app")
+include(":app")
+include(":app")
  

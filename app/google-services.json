@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "889465664617",
+    "project_id": "orangutaninformationcenter-app",
+    "storage_bucket": "orangutaninformationcenter-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:889465664617:android:2eb62c0719727cf6819ef8",
+        "android_client_info": {
+          "package_name": "com.oic.myapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2mT7Bc1WeSHkATB1bJC-GCpm8wcnjJc8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
