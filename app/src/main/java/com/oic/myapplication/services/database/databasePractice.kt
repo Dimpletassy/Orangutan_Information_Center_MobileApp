@@ -7,6 +7,10 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.firestore
 import com.oic.myapplication.helper.getcurDate
 import com.oic.myapplication.helper.getcurTime
+import com.oic.myapplication.services.database.models.DailyLog
+import com.oic.myapplication.services.database.models.Day
+import com.oic.myapplication.services.database.models.IrrigationLog
+import com.oic.myapplication.services.database.models.Schedule
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -21,11 +25,17 @@ fun databasePractice (){
     val time = getcurTime()
     val timestamp = Timestamp.now()
     val zones = listOf("0", "1")
-    val irrigationLog = IrrigationLog(startTime = time, endTime = time, zone = zones, durationMins = 10, scheduled = false)
+    val irrigationLog = IrrigationLog(
+        startTime = time,
+        endTime = time,
+        zone = zones,
+        litres = 10,
+        scheduled = false
+    )
     val logList: Map<String, IrrigationLog> = mapOf(
         irrigationLog.startTime to irrigationLog)
 
-    val dailyLog = DailyLog(date=date, timestamp=timestamp, logs=logList)
+    val dailyLog = DailyLog(date = date, timestamp = timestamp, logs = logList)
     dbController.createDailyLog(dailyLog)
 
 
@@ -44,7 +54,7 @@ fun databasePractice (){
         startTime = time2DaysAgo,
         endTime = time2DaysAgo,
         zone = zones2,
-        durationMins = 10,
+        litres = 10,
         scheduled = false
     )
 
@@ -78,4 +88,13 @@ fun databasePractice (){
             Log.d("firestore", "No document found")
         }
     }
+
+    val schedule = Schedule(
+        day = Day.TUESDAY,
+        startTime = getcurTime(),
+        zone = zones,
+        durationMins = 10,
+    )
+
+    dbController.addSchedule(schedule)
 }

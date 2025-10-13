@@ -2,6 +2,7 @@ package com.oic.myapplication
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,18 +14,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.oic.myapplication.nav.AppNav
-import com.oic.myapplication.services.database.databaseController
-import com.oic.myapplication.services.database.databasePractice
 import com.oic.myapplication.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val latte = android.graphics.Color.parseColor("#F6F0B4")
+        val cocoa = android.graphics.Color.parseColor("#5A3D23")
+
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(latte, cocoa),
+            navigationBarStyle = SystemBarStyle.light(latte, cocoa)
+        )
+
         setContent {
             MyApplicationTheme {
-                AppNav(navController = rememberNavController())
+                val nav = rememberNavController()
+                AppNav(nav)
             }
-            databasePractice()
         }
+
     }
 }

@@ -1,5 +1,6 @@
 package com.oic.myapplication.ui.screens.auth
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,46 +21,48 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oic.myapplication.ui.components.*
+import com.oic.myapplication.ui.palette.*
 import com.oic.myapplication.R
 import com.oic.myapplication.services.auth.firebaseLogin
 import com.oic.myapplication.services.auth.validateLoginInput
+import com.oic.myapplication.services.database.databaseController
+import com.oic.myapplication.services.database.dummyDatasets.populateDatabaseFromAssets
 import com.oic.myapplication.ui.components.DotsIndicator
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.PillField
-import com.oic.myapplication.ui.palette.CardXL
-import com.oic.myapplication.ui.palette.Cocoa
-import com.oic.myapplication.ui.palette.CocoaDeep
-import com.oic.myapplication.ui.palette.GoldDark
-import com.oic.myapplication.ui.palette.SurfaceWhite
+import com.oic.myapplication.ui.palette.*
 
 
 @Composable
 fun LoginScreen(
-    onLogin: (String, String) -> Unit,
+    validateCredentials: (String, String) -> Boolean,
+    onLoginSuccess: () -> Unit,
     onSignUp: () -> Unit,
     onForgot: () -> Unit
 ) {
+
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var staySignedIn by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header image
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .height(300.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
             Image(
                 painter = painterResource(R.drawable.hands_header),
                 contentDescription = "Header image",
@@ -67,37 +70,27 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxSize()
             )
             DotsIndicator(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
                 total = 3, selected = 1
             )
         }
 
-        // Card-like surface
-
         Surface(
-            shape = CardXL,
-            color = SurfaceWhite,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
+            shape = CardXL, color = SurfaceWhite,
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("Login", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = CocoaDeep)
                 Spacer(Modifier.height(14.dp))
 
                 PillField(
-                    label = "Username",
+                    label = "Email",
                     value = username,
                     onValueChange = { username = it },
-                    placeholder = "Enter Phone Number / Email",
+                    placeholder = "Enter email address",
                     leadingIcon = Icons.Outlined.Person
                 )
                 Spacer(Modifier.height(10.dp))
@@ -105,15 +98,13 @@ fun LoginScreen(
                     label = "Password",
                     value = password,
                     onValueChange = { password = it },
-                    placeholder = "Enter Password",
-                    isPassword = true,
+                    placeholder = "Enter password",
+                    //isPassword = true,
                     leadingIcon = Icons.Outlined.Lock
                 )
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -121,38 +112,39 @@ fun LoginScreen(
                         Checkbox(checked = staySignedIn, onCheckedChange = { staySignedIn = it })
                         Text("Stay Signed in", color = Cocoa)
                     }
-                    TextButton(onClick = onForgot) {
-                        Text("Forgot Password?", color = Cocoa)
-                    }
+                    TextButton(onClick = onForgot) { Text("Forgot Password?", color = Cocoa) }
                 }
 
                 if (error != null) {
                     Spacer(Modifier.height(6.dp))
-                    Text(error!!, color = androidx.compose.ui.graphics.Color.Red)
+                    Text(error!!, color = Color.Red)
                 }
 
                 Spacer(Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilledButton(text = "Sign Up", onClick = onSignUp, container = GoldDark, modifier = Modifier.weight(1f))
-
-                    FilledButton(text = "Login", onClick = {
-                        error = validateLoginInput(username, password)
-                        if (error == null){
-                            firebaseLogin(username, password){success ->
-                                if (success == true){
-                                    //todo: go to homepage
-                                    onLogin(username, password)
-                                }else{
-                                    //todo: ui error
+                    FilledButton(
+                        text = "Login",
+                        onClick = {
+                            if (username.isBlank() || password.isBlank()){
+                                error = "Please enter email or password"
+                            } else{
+                                firebaseLogin(username.trim(), password){success ->
+                                    if (success){
+                                        onLoginSuccess()
+                                    } else {
+                                        error = "Invalid email or password"
+                                    }
                                 }
                             }
-                        }
-                    }, container = Cocoa, modifier = Modifier.weight(1f))
+                        },
+                        container = Cocoa,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
     }
 }
+
+

@@ -31,14 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oic.myapplication.services.auth.firebaseSignup
 import com.oic.myapplication.services.auth.validateSignUpInput
-import com.oic.myapplication.ui.components.FilledButton
-import com.oic.myapplication.ui.components.HeaderWithImage
-import com.oic.myapplication.ui.components.PillField
-import com.oic.myapplication.ui.palette.CardXL
-import com.oic.myapplication.ui.palette.Cocoa
-import com.oic.myapplication.ui.palette.CocoaDeep
-import com.oic.myapplication.ui.palette.GoldDark
-import com.oic.myapplication.ui.palette.SurfaceWhite
+import com.oic.myapplication.ui.components.*
+import com.oic.myapplication.ui.palette.*
 
 @Composable
 fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
@@ -73,7 +67,7 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 PillField("Phone Number / Email", contact, { contact = it }, placeholder = "Enter Phone Number / Email", leadingIcon = Icons.Outlined.Email)
                 Spacer(Modifier.height(10.dp))
-                PillField("Password", pass, { pass = it }, isPassword = true, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
+                PillField("Password", pass, { pass = it }, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
                 Spacer(Modifier.height(10.dp))
                 PillField("Re-Enter Password", confirm, { confirm = it }, isPassword = true, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
 
@@ -84,22 +78,8 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
 
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilledButton("Sign Up", onClick = onSubmit, container = GoldDark, modifier = Modifier.weight(1f))
                     FilledButton("Login", onClick = onGoLogin, container = Cocoa, modifier = Modifier.weight(1f))
-                    FilledButton("Sign Up", onClick = {
-                        val error = validateSignUpInput(first, last, contact, pass)
-                        if (error != null){
-                            //TODO: add ui for error msgs
-                            Log.d(TAG, error)
-                        }else{
-                            //TODO: add to firebase users
-                            firebaseSignup(first, last, contact, pass){ success ->
-                                if (success == true){
-                                    onGoLogin
-                                }
-                            }
-                        }
-
-                    }, container = GoldDark, modifier = Modifier.weight(1f))
                 }
             }
         }

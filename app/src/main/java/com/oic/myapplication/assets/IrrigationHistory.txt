@@ -1,0 +1,101 @@
+[
+    {
+        "date": "2025-10-14",
+        "logs": {
+            "10:15:00": {
+                "zone": [
+                    "0"
+                ],
+                "scheduled": false,
+                "durationMins": 60,
+                "startTime": "10:15:00",
+                "endTime": "11:15:00"
+            }
+        },
+        "timestamp": "2025-10-14T03:23:25.790534"
+    },
+    {
+        "date": "2025-10-13",
+        "logs": {
+            "12:00:00": {
+                "zone": [
+                    "0",
+                    "1"
+                ],
+                "scheduled": true,
+                "durationMins": 60,
+                "startTime": "12:00:00",
+                "endTime": "13:00:00"
+            },
+            "06:30:00": {
+                "zone": [
+                    "0"
+                ],
+                "scheduled": false,
+                "durationMins": 60,
+                "startTime": "06:30:00",
+                "endTime": "07:30:00"
+            },
+            "06:00:00": {
+                "zone": [
+                    "1",
+                    "0"
+                ],
+                "scheduled": true,
+                "durationMins": 60,
+                "startTime": "06:00:00",
+                "endTime": "07:00:00"
+            }
+        },
+        "timestamp": "2025-10-14T03:23:25.790661"
+    },
+    {
+        "date": "2025-10-12",
+        "logs": {
+            "11:00:00": {
+                "zone": [
+                    "0",
+                    "1"
+                ],
+                "scheduled": false,
+                "durationMins": 60,
+                "startTime": "11:00:00",
+                "endTime": "12:00:00"
+            },
+            "13:30:00": {
+                "zone": [
+                    "0"
+                ],
+                "scheduled": true,
+                "durationMins": 60,
+                "startTime": "13:30:00",
+                "endTime": "14:30:00"
+            }
+        },
+        "timestamp": "2025-10-14T03:23:25.790732"
+    },
+    {
+        "date": "2025-10-11",
+        "logs": {
+            "11:45:00": {
+                "zone": [
+                    "0"
+                ],
+                "scheduled": true,
+                "durationMins": 60,
+                "startTime": "11:45:00",
+                "endTime": "12:45:00"
+            },
+            "11:30:00": {
+                "zone": [
+                    "0"
+                ],
+                "scheduled": true,
+                "durationMins": 60,
+                "startTime": "11:30:00",
+                "endTime": "12:30:00"
+            }
+        },
+        "timestamp": "2025-10-14T03:23:25.790870"
+    }
+]

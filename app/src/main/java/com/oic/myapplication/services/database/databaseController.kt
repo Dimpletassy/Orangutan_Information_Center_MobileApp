@@ -7,26 +7,22 @@ import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.firestore
 import com.oic.myapplication.helper.timestampToDate
+import com.oic.myapplication.services.database.models.DailyLog
+import com.oic.myapplication.services.database.models.IrrigationLog
+import com.oic.myapplication.services.database.models.Schedule
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
 
 val TAG = "Firestore"
 
 // time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 // date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-data class IrrigationLog(
-    val startTime: String,
-    val endTime: String,
-    val zone: List<String>, // 0, 1
-    val durationMins: Int,
-    val scheduled: Boolean // if manual then false
-)
 
-data class DailyLog(
-    val date: String,
-    val timestamp: Timestamp = Timestamp.now(),
-    val logs: Map<String, IrrigationLog>
-)
+
 const val logHistoryCollectionPath = "IrrigationLogs"
+const val scheduleCollectionPath = "IrrigationSchedules"
 
 class databaseController {
     val db = Firebase.firestore
@@ -67,16 +63,30 @@ class databaseController {
             }
     }
 
-    fun getAllDailyLog(){
+    suspend fun getAllDailyLogs(): List<DailyLog> = suspendCoroutine { continuation ->
         db.collection(logHistoryCollectionPath)
             .get()
             .addOnSuccessListener { result ->
-                for (document in result) {
-                    Log.d(TAG, "${document.id} => ${document.data}")
+                val logs = result.map { document ->
+                    val data = document.data
+                    val logDate = data["date"] as String
+                    val timestamp = data["timestamp"] as Timestamp
+                    val rawLogs = data["logs"] as? Map<String, Map<String, Any>> ?: emptyMap()
+                    val logsMap = rawLogs.mapValues { (_, logEntry) ->
+                        IrrigationLog(
+                            zone = logEntry["zone"] as? List<String> ?: emptyList(),
+                            scheduled = logEntry["scheduled"] as? Boolean ?: false,
+                            litres = (logEntry["litres"] as? Long)?.toInt() ?: 0,
+                            startTime = logEntry["startTime"] as? String ?: "",
+                            endTime = logEntry["endTime"] as? String ?: ""
+                        )
+                    }
+                    DailyLog(logDate, timestamp, logsMap)
                 }
+                continuation.resume(logs)
             }
             .addOnFailureListener { exception ->
-                Log.w(TAG, "Error getting documents: ", exception)
+                continuation.resumeWithException(exception)
             }
     }
 
@@ -116,5 +126,16 @@ class databaseController {
                 Log.w(TAG, "Error getting range logs ", exception)
             }
     }
+
+    fun addSchedule(schedule: Schedule){
+        /* USED FOR CREATING AND UPDATING SCHEDULES */
+        db.collection(scheduleCollectionPath)
+            .document(schedule.day.name)
+            .set(schedule)
+            .addOnSuccessListener { Log.d(TAG, "Log for ${schedule.day.name} written!") }
+            .addOnFailureListener { e -> Log.w(TAG, "Error writing log", e) }
+    }
+
+
 
 }

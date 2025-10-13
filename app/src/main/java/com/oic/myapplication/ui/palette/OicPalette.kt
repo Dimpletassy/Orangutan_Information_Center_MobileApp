@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+// Adjust these to match your exact Figma hex values if needed
 val GoldDark     = Color(0xFFB97A10)
 val GoldLight    = Color(0xFFF1CF58)
 val Cocoa        = Color(0xFF5A3D23)
