@@ -10,11 +10,11 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
+
 private const val LOG_COLLECTION = "IrrigationLogs"
 private const val SCHEDULE_COLLECTION = "IrrigationSchedules"
 
 class DatabaseController {
-
     companion object {
         private const val TAG = "Firestore"
     }
