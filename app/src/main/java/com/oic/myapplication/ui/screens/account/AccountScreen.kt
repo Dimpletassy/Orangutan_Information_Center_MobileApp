@@ -33,9 +33,9 @@ fun AccountScreen(
     val headerTimeFmt = remember { DateTimeFormatter.ofPattern("h:mm a") }
 
     // --- Form state (kept as you had it) ---
-    var first by remember { mutableStateOf("Jane") }
-    var last  by remember { mutableStateOf("Doe") }
-    var email by remember { mutableStateOf("janedoe@gmail.com") }
+    var first by remember { mutableStateOf("Test") }
+    var last  by remember { mutableStateOf("User") }
+    var email by remember { mutableStateOf("test@oic.com") }
     var site  by remember { mutableStateOf("Jl. Pantai buaya, Bukit MAS, Kec. Besitang, Kabupaten Langkat, Sumatera Utara 20859") }
 
     Column(

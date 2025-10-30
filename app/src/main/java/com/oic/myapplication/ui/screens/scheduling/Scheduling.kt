@@ -4,25 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -70,17 +57,16 @@ import com.oic.myapplication.services.database.models.DailyLog
 import com.oic.myapplication.services.database.models.IrrigationLog
 import com.oic.myapplication.ui.palette.*
 import com.oic.myapplication.ui.screens.notifications.NotificationsRepo
+import com.oic.myapplication.ui.screens.weather.WeatherViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
-
-import com.oic.myapplication.ui.screens.weather.WeatherViewModel
-import java.time.LocalDate
 
 /* ---------------- Model ---------------- */
 
@@ -96,6 +82,7 @@ fun SchedulingScreen(
     onOpenReporting: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onBackToSites: () -> Unit,   // ← NEW: back action
 ) {
     // Live date/time (minute tick)
     val zone = ZoneId.systemDefault()
@@ -104,7 +91,6 @@ fun SchedulingScreen(
         while (true) { now = LocalDateTime.now(zone); delay(60_000) }
     }
     val dateFmt = remember { DateTimeFormatter.ofPattern("EEEE, d MMMM, yyyy") }
-    // Safe-on-all-API time text
     val timeText = remember(now) {
         SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
     }
@@ -135,27 +121,16 @@ fun SchedulingScreen(
 
     // Logging
     val morningLog = IrrigationLog(
-        startTime = morningStart,
-        endTime = morningEnd,
-        scheduled = true,
-        litres = morningLitres,
-        zone = listOf("0")
+        startTime = morningStart, endTime = morningEnd,
+        scheduled = true, litres = morningLitres, zone = listOf("0")
     )
-
     val middayLog = IrrigationLog(
-        startTime = middayStart,
-        endTime = middayEnd,
-        scheduled = true,
-        litres = middayLitres,
-        zone = listOf("0")
+        startTime = middayStart, endTime = middayEnd,
+        scheduled = true, litres = middayLitres, zone = listOf("0")
     )
-
     val afternoonLog = IrrigationLog(
-        startTime = afternoonStart,
-        endTime = afternoonEnd,
-        scheduled = true,
-        litres = afternoonLitres,
-        zone = listOf("0")
+        startTime = afternoonStart, endTime = afternoonEnd,
+        scheduled = true, litres = afternoonLitres, zone = listOf("0")
     )
 
     val logMap: Map<String, IrrigationLog> = mapOf(
@@ -165,14 +140,9 @@ fun SchedulingScreen(
     )
 
     val todayDate = LocalDate.now().toString() // "2025-10-14"
-    val dailyLog = DailyLog(
-        date = todayDate,
-        logs = logMap
-    )
+    val dailyLog = DailyLog(date = todayDate, logs = logMap)
 
     val dbController = databaseController()
-
-
 
     // Weather (Medan)
     val LAT = 3.5952
@@ -189,7 +159,7 @@ fun SchedulingScreen(
     // Bell badge
     val unread by NotificationsRepo.unreadCount.collectAsState(initial = 0)
 
-    // Heads-up bubble state (must be nullable -> start as null)
+    // Heads-up bubble state (nullable)
     var headUp by remember { mutableStateOf<NotificationEventUi?>(null) }
 
     // ======= Background image + scrim =======
@@ -205,7 +175,7 @@ fun SchedulingScreen(
                 .matchParentSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color(0xCC000000),  // darker at top for readability
+                        0f to Color(0xCC000000),
                         0.35f to Color(0x66000000),
                         0.7f to Color(0x22000000),
                         1f to Color(0x11000000)
@@ -213,56 +183,79 @@ fun SchedulingScreen(
                 )
         )
 
+
         // ======= Foreground UI =======
+
         Scaffold(
             containerColor = Color.Transparent,
-            // 🔧 Let the parent Scaffold own insets (so bottom nav stays visible)
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(top = 22.dp, start = 26.dp, end = 26.dp, bottom = 16.dp)
+                        .padding(horizontal = 26.dp, vertical = 16.dp)
                 ) {
-                    Column {
-                        Text(
-                            "Selamat Datang, Bang Nanda 😊",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = SurfaceWhite
-                        )
+                    // Title + bell aligned on one row
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Selamat Datang, Bang Nanda 😊",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SurfaceWhite
+                            )
+
+                            Box {
+                                IconButton(onClick = onOpenNotifications) {
+                                    Text("🔔", fontSize = 26.sp, lineHeight = 26.sp)
+                                }
+                                if (unread > 0) {
+                                    Box(
+                                        Modifier
+                                            .size(10.dp)
+                                            .align(Alignment.TopEnd)
+                                            .offset(x = 2.dp, y = (-2).dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFE53935))
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(Modifier.height(2.dp))
                         Text(
                             "${now.format(dateFmt)}  •  $timeText",
                             color = SurfaceWhite.copy(alpha = 0.9f)
                         )
                     }
-                    // bell + badge
-                    Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                        IconButton(onClick = onOpenNotifications) {
-                            Text("🔔", fontSize = 26.sp, lineHeight = 26.sp)
-                        }
-                        if (unread > 0) {
-                            Box(
-                                Modifier
-                                    .size(10.dp)
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 2.dp, y = (-2).dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE53935))
-                            )
-                        }
+
+                    // Back arrow sits a touch lower, left
+                    IconButton(
+                        onClick = onBackToSites,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .offset(y = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = SurfaceWhite
+                        )
                     }
                 }
             }
+
         ) { innerPadding ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),                // keep only innerPadding
-                // ⬇️ No windowInsetsPadding here
-                contentPadding = PaddingValues(bottom = 24.dp) // no extra +72.dp
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
 
                 /* ---------------- Current Irrigation ---------------- */
@@ -292,9 +285,7 @@ fun SchedulingScreen(
                                 Text("Location: Permaculture Zone", color = Cocoa.copy(alpha = .65f), fontSize = 14.sp)
 
                                 Spacer(Modifier.height(16.dp))
-
                                 PeriodChips(selected = selectedPeriod, onSelect = { selectedPeriod = it })
-
                                 Spacer(Modifier.height(12.dp))
 
                                 when (selectedPeriod) {
@@ -336,7 +327,7 @@ fun SchedulingScreen(
                                 FilledWideButton(text = startStopLabel) {
                                     val nowText = timeText
                                     if (isIrrigating) {
-                                        IrrigationRepo.stop() // persist across navigation
+                                        IrrigationRepo.stop()
                                         NotificationsRepo.pushStop(nowText)
                                         headUp = NotificationEventUi(
                                             title = "Stopped",
@@ -345,7 +336,7 @@ fun SchedulingScreen(
                                         )
                                         showSplash = false
                                     } else {
-                                        IrrigationRepo.start() // persist across navigation
+                                        IrrigationRepo.start()
                                         dbController.createDailyLog(dailyLog)
                                         showSplash = true
                                         NotificationsRepo.pushStart(nowText)
@@ -403,13 +394,28 @@ fun SchedulingScreen(
 
                             Spacer(Modifier.height(10.dp))
 
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            // Use FlowRow so all 3 pills stay horizontal and wrap nicely on small widths.
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                maxItemsInEachRow = 3
                             ) {
-                                StatPill("Temp", weatherState.temperatureC?.let { "$it°C" } ?: "—", minWidth = 120.dp)
-                                StatPill("Humidity", weatherState.humidityPct?.let { "$it%" } ?: "—", minWidth = 120.dp)
-                                StatPill("Wind", weatherState.windKmh?.let { "$it km/h" } ?: "—", minWidth = 120.dp)
+                                StatPill(
+                                    "Temp",
+                                    weatherState.temperatureC?.let { "$it°C" } ?: "—",
+                                    minWidth = 120.dp
+                                )
+                                StatPill(
+                                    "Humidity",
+                                    weatherState.humidityPct?.let { "$it%" } ?: "—",
+                                    minWidth = 120.dp
+                                )
+                                StatPill(
+                                    "Wind",
+                                    weatherState.windKmh?.let { "$it km/h" } ?: "—",
+                                    minWidth = 120.dp
+                                )
                             }
 
                             Spacer(Modifier.height(14.dp))
@@ -703,13 +709,11 @@ private fun WaterConfettiOverlay(
     onFinished: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    // per-drop animatables
     val progress = remember { List(drops) { Animatable(0f) } }   // 0..1
     val alpha    = remember { List(drops) { Animatable(0f) } }
     val scale    = remember { List(drops) { Animatable(0.8f) } }
     val rotate   = remember { List(drops) { Animatable(0f) } }
 
-    // randomized params (duration, x, sway amplitude)
     val seeds = remember {
         List(drops) {
             val dur = (900..1600).random()
@@ -815,5 +819,10 @@ private fun HeadsUpBubble(
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun ScreenPreview() {
-    SchedulingScreen(onOpenReporting = {}, onOpenAccount = {}, onOpenNotifications = {})
+    SchedulingScreen(
+        onOpenReporting = {},
+        onOpenAccount = {},
+        onOpenNotifications = {},
+        onBackToSites = {} // noop in preview
+    )
 }

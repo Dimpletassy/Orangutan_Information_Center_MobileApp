@@ -9,9 +9,12 @@ import com.oic.myapplication.ui.screens.auth.ResetScreen
 import com.oic.myapplication.ui.screens.auth.SignUpScreen
 import com.oic.myapplication.ui.screens.main.MainShell
 import com.oic.myapplication.ui.screens.welcome.WelcomeScreen
+import com.oic.myapplication.ui.sites.SiteDetailsScreen
 
 @Composable
 fun AppNav(navController: NavHostController) {
+    // If already logged in on app launch, go straight to Main.
+    // Fresh auth goes Login/SignUp -> SiteDetails -> Main.
     val start = if (Session.isLoggedIn) Routes.Main else Routes.Welcome
 
     NavHost(navController = navController, startDestination = start) {
@@ -24,8 +27,9 @@ fun AppNav(navController: NavHostController) {
             LoginScreen(
                 validateCredentials = { email, pass -> email.contains("@") && pass.isNotBlank() },
                 onLoginSuccess = {
-                    Session.login()
-                    navController.navigate(Routes.Main) {
+                    // NOTE: do NOT call Session.login() here.
+                    // Navigate to Site Details first.
+                    navController.navigate(Routes.SiteDetails) {
                         popUpTo(Routes.Welcome) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -36,21 +40,38 @@ fun AppNav(navController: NavHostController) {
         }
 
         composable(Routes.SignUp) {
-            // You keep your current UI; on submit go to Main
             SignUpScreen(
                 onSubmit = {
-                    Session.login()
-                    navController.navigate(Routes.Main) {
+                    // Same idea: go to Site Details first.
+                    navController.navigate(Routes.SiteDetails) {
                         popUpTo(Routes.Welcome) { inclusive = true }
                         launchSingleTop = true
                     }
                 },
-                onGoLogin = { navController.popBackStack(); navController.navigate(Routes.Login) }
+                onGoLogin = {
+                    navController.popBackStack()
+                    navController.navigate(Routes.Login)
+                }
             )
         }
 
         composable(Routes.Reset) {
             ResetScreen(onDone = { navController.popBackStack() })
+        }
+
+        // NEW: Site Details between auth and Main.
+        composable(Routes.SiteDetails) {
+            SiteDetailsScreen(
+                onOpenBukitmas = {
+                    // Mark session as logged-in *here* so any listeners
+                    // won’t bypass SiteDetails prematurely.
+                    Session.login()
+                    navController.navigate(Routes.Main) {
+                        popUpTo(Routes.SiteDetails) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
 
         // Bottom-nav shell with inner NavHost for tabs
@@ -65,9 +86,13 @@ fun AppNav(navController: NavHostController) {
                         launchSingleTop = true
                     }
                 },
-                openReset = { navController.navigate(Routes.Reset) } // for Account -> Change password
+                openReset = { navController.navigate(Routes.Reset) },
+                openSiteDetails = {  // 🆕 this fixes the error
+                    navController.navigate(Routes.SiteDetails) {
+                        popUpTo(Routes.Main) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
-    }
-}
-
+    }}

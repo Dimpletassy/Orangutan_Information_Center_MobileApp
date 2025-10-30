@@ -49,7 +49,7 @@ fun WelcomeScreen(onSwipeUp: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            //.padding(16.dp)
             .clip(RoundedCornerShape(32.dp))
             .background(gradient)
     ) {

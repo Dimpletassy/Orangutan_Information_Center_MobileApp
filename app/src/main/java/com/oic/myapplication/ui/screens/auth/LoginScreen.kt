@@ -1,16 +1,7 @@
 package com.oic.myapplication.ui.screens.auth
 
-import android.util.Log
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,33 +11,27 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.oic.myapplication.ui.components.*
-import com.oic.myapplication.ui.palette.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.oic.myapplication.R
-import com.oic.myapplication.services.auth.firebaseLogin
-import com.oic.myapplication.services.auth.validateLoginInput
-import com.oic.myapplication.services.database.databaseController
-import com.oic.myapplication.services.database.dummyDatasets.populateDatabaseFromAssets
 import com.oic.myapplication.ui.components.DotsIndicator
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.PillField
 import com.oic.myapplication.ui.palette.*
-
 
 @Composable
 fun LoginScreen(
@@ -55,14 +40,23 @@ fun LoginScreen(
     onSignUp: () -> Unit,
     onForgot: () -> Unit
 ) {
-
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var staySignedIn by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    // Make the header image ~48% of screen height (nice balance on most phones)
+    val screenH = LocalConfiguration.current.screenHeightDp
+    val headerH = (screenH * 0.48f).dp
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
+
+        // BIGGER header image
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(headerH)
+        ) {
             Image(
                 painter = painterResource(R.drawable.hands_header),
                 contentDescription = "Header image",
@@ -70,17 +64,28 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxSize()
             )
             DotsIndicator(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp),
                 total = 3, selected = 1
             )
         }
 
+        // Pull the card up over the image so there's less white
         Surface(
-            shape = CardXL, color = SurfaceWhite,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = SurfaceWhite,
+            tonalElevation = 1.dp,
+            shadowElevation = 2.dp,
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = (-24).dp)   // <- overlap
         ) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("Login", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = CocoaDeep)
@@ -99,12 +104,13 @@ fun LoginScreen(
                     value = password,
                     onValueChange = { password = it },
                     placeholder = "Enter password",
-                    //isPassword = true,
                     leadingIcon = Icons.Outlined.Lock
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -121,18 +127,28 @@ fun LoginScreen(
                 }
 
                 Spacer(Modifier.height(14.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FilledButton(text = "Sign Up", onClick = onSignUp, container = GoldDark, modifier = Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FilledButton(
+                        text = "Sign Up",
+                        onClick = onSignUp,
+                        container = GoldDark,
+                        modifier = Modifier.weight(1f)
+                    )
                     FilledButton(
                         text = "Login",
                         onClick = {
-                            if (username.isBlank() || password.isBlank()){
+                            if (username.isBlank() || password.isBlank()) {
                                 error = "Please enter email or password"
-                            } else{
-                                firebaseLogin(username.trim(), password){success ->
-                                    if (success){
-                                        onLoginSuccess()
-                                    } else {
+                            } else {
+                                // your firebaseLogin() call from before
+                                com.oic.myapplication.services.auth.firebaseLogin(
+                                    username.trim(),
+                                    password
+                                ) { success ->
+                                    if (success) onLoginSuccess() else {
                                         error = "Invalid email or password"
                                     }
                                 }
@@ -146,5 +162,3 @@ fun LoginScreen(
         }
     }
 }
-
-

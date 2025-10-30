@@ -1,8 +1,7 @@
 package com.oic.myapplication.ui.screens.main
 
-
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
-
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -16,13 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.oic.myapplication.R
 import com.oic.myapplication.nav.Routes
-import com.oic.myapplication.ui.components.*
 import com.oic.myapplication.ui.palette.*
 import com.oic.myapplication.ui.screens.account.AccountScreen
 import com.oic.myapplication.ui.screens.notifications.NotificationsScreen
@@ -33,7 +31,8 @@ import com.oic.myapplication.ui.screens.scheduling.SchedulingScreen
 fun MainShell(
     innerNav: NavHostController,
     onLogout: () -> Unit,
-    openReset: () -> Unit
+    openReset: () -> Unit,
+    openSiteDetails: () -> Unit,   // ← NEW: navigate to Site Details
 ) {
     val tabs = listOf(
         Triple(Routes.Home,      Icons.Outlined.Home,          "Home"),
@@ -42,11 +41,11 @@ fun MainShell(
     )
 
     Scaffold(
-        // light background behind screens; your Scheduling page draws its own image/header
-        containerColor = SurfaceWhite,
+        containerColor = Color.Transparent,                 // was SurfaceWhite
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),     // let child screens handle insets
         bottomBar = {
             NavigationBar(
-                containerColor = Latte.copy(alpha = 0.95f),  // lighter bar per your request
+                containerColor = Latte.copy(alpha = 0.95f),
                 contentColor   = CocoaDeep
             ) {
                 val backStack by innerNav.currentBackStackEntryAsState()
@@ -56,9 +55,7 @@ fun MainShell(
                         selected = current == route,
                         onClick = {
                             if (current != route) {
-                                innerNav.navigate(route) {
-                                    launchSingleTop = true
-                                }
+                                innerNav.navigate(route) { launchSingleTop = true }
                             }
                         },
                         icon = { Icon(icon, contentDescription = label) },
@@ -75,7 +72,6 @@ fun MainShell(
             }
         }
     ) { innerPadding ->
-        // IMPORTANT: pass the Scaffold's padding into the NavHost so content sits above the bar
         NavHost(
             navController = innerNav,
             startDestination = Routes.Home,
@@ -85,7 +81,8 @@ fun MainShell(
                 SchedulingScreen(
                     onOpenReporting     = { innerNav.navigate(Routes.Reporting) },
                     onOpenAccount       = { innerNav.navigate(Routes.Account) },
-                    onOpenNotifications = { innerNav.navigate(Routes.Notifications) }
+                    onOpenNotifications = { innerNav.navigate(Routes.Notifications) },
+                    onBackToSites       = openSiteDetails           // ← wired to back arrow
                 )
             }
             composable(Routes.Reporting) { ReportingScreen() }
