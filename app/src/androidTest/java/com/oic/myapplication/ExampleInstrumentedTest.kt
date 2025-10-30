@@ -2,7 +2,7 @@ package com.oic.myapplication
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.oic.myapplication.services.database.databaseController
+import com.oic.myapplication.services.database.DatabaseController
 
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,7 +25,7 @@ class ExampleInstrumentedTest {
         assertEquals("com.oic.myapplication", appContext.packageName)
     }
 
-    private val dbController = databaseController()
+    private val dbController = DatabaseController()
 
     @Test
     fun getDailyLogForToday() {

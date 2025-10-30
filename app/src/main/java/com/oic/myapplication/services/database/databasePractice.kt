@@ -1,6 +1,5 @@
 package com.oic.myapplication.services.database
 
-import android.content.ContentValues.TAG
 import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
@@ -13,13 +12,12 @@ import com.oic.myapplication.services.database.models.IrrigationLog
 import com.oic.myapplication.services.database.models.Schedule
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 
 fun databasePractice (){
     val db = Firebase.firestore
-    val dbController = databaseController()
+    val dbController = DatabaseController()
 
     val date = getcurDate()
     val time = getcurTime()

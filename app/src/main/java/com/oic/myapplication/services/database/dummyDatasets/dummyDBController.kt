@@ -1,11 +1,8 @@
 package com.oic.myapplication.services.database.dummyDatasets
 
-import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import com.oic.myapplication.helper.timestampToDate
-import com.oic.myapplication.services.database.databaseController
+import com.oic.myapplication.services.database.DatabaseController
 import com.oic.myapplication.services.database.models.DailyLog
 import com.oic.myapplication.services.database.models.IrrigationLog
 
@@ -14,7 +11,7 @@ fun populateDatabaseFromAssets() {
 
     try {
 
-        val dbController = databaseController()
+        val dbController = DatabaseController()
 
         // --- Push each log to Firestore ---
         val irrigationLog = IrrigationLog(
@@ -60,22 +57,22 @@ fun populateDatabaseFromAssets() {
         )
 
         val dailyLog = DailyLog(
-            date = "2025-10-11",
+            date = "2025-09-11",
             logs = logList
         )
 
         val dailyLog2 = DailyLog(
-            date = "2025-10-12",
+            date = "2025-09-12",
             logs = logList2
         )
 
         val dailyLog3 = DailyLog(
-            date = "2025-10-13",
+            date = "2025-09-13",
             logs = logList3
         )
 
         val dailyLog4 = DailyLog(
-            date = "2025-10-14",
+            date = "2025-09-14",
             logs = logList4
         )
 

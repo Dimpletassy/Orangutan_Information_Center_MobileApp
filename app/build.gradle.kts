@@ -85,6 +85,10 @@ dependencies {
     implementation("com.google.android.gms:play-services-cronet:18.1.0")
     implementation("com.google.code.gson:gson:2.8.5")
 
+    // UI GRAPHS
+    implementation("com.patrykandpatrick.vico:core:1.11.1")
+    implementation("com.patrykandpatrick.vico:compose:1.11.1")
+
 
 
 }

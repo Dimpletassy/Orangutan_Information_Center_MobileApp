@@ -1,15 +1,10 @@
 package com.oic.myapplication
 
-import android.util.Log
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.firebase.firestore.FirebaseFirestore
-import com.oic.myapplication.services.database.databaseController
+
 import org.junit.Test
 
 import org.junit.Assert.*
 import org.junit.runner.RunWith
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -17,7 +12,7 @@ import java.util.concurrent.TimeUnit
  * See [testing documentation](http://d.android.com/tools/testing).
  */
 
-@RunWith(AndroidJUnit4::class)
+
 class ExampleUnitTest {
     @Test
     fun addition_isCorrect() {

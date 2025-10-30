@@ -1,6 +1,5 @@
 package com.oic.myapplication.ui.screens.auth
 
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,7 +20,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,22 +28,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.oic.myapplication.ui.components.*
 import com.oic.myapplication.ui.palette.*
 import com.oic.myapplication.R
-import com.oic.myapplication.services.auth.firebaseLogin
-import com.oic.myapplication.services.auth.validateLoginInput
-import com.oic.myapplication.services.database.databaseController
-import com.oic.myapplication.services.database.dummyDatasets.populateDatabaseFromAssets
+import com.oic.myapplication.services.auth.FirebaseAuthService
 import com.oic.myapplication.ui.components.DotsIndicator
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.PillField
-import com.oic.myapplication.ui.palette.*
 
 
 @Composable
@@ -60,6 +52,8 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var staySignedIn by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    val firebaseAuth = FirebaseAuthService()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
@@ -129,7 +123,7 @@ fun LoginScreen(
                             if (username.isBlank() || password.isBlank()){
                                 error = "Please enter email or password"
                             } else{
-                                firebaseLogin(username.trim(), password){success ->
+                                firebaseAuth.login(username.trim(), password){success ->
                                     if (success){
                                         onLoginSuccess()
                                     } else {
