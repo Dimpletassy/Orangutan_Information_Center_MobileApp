@@ -1,12 +1,8 @@
 package com.oic.myapplication.services.database
 
-import android.content.ContentValues
 import android.util.Log
-import androidx.core.os.registerForAllProfilingResults
-import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.firestore
-import com.oic.myapplication.helper.timestampToDate
+import com.google.firebase.firestore.FirebaseFirestore
 import com.oic.myapplication.services.database.models.DailyLog
 import com.oic.myapplication.services.database.models.IrrigationLog
 import com.oic.myapplication.services.database.models.Schedule
@@ -14,63 +10,58 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
+private const val LOG_COLLECTION = "IrrigationLogs"
+private const val SCHEDULE_COLLECTION = "IrrigationSchedules"
 
-val TAG = "Firestore"
+class DatabaseController {
 
-// time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-// date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+    companion object {
+        private const val TAG = "Firestore"
+    }
 
+    private val db = FirebaseFirestore.getInstance()
 
-const val logHistoryCollectionPath = "IrrigationLogs"
-const val scheduleCollectionPath = "IrrigationSchedules"
-
-class databaseController {
-    val db = Firebase.firestore
-
-    fun createDailyLog(dailyLog: DailyLog){
-        /* CREATES A DAILY LOG TO THE DB FOR EACH IRRIGATION ACTION OF THE DAY TO BE ADDED TO */
-        db.collection(logHistoryCollectionPath)
-            .document(dailyLog.date)
-            .get()
-            .addOnSuccessListener { documentSnapshot ->
-                if (documentSnapshot.exists() ){
+    /**
+     * Creates a daily log if it doesn't exist already.
+     */
+    fun createDailyLog(dailyLog: DailyLog) {
+        val docRef = db.collection(LOG_COLLECTION).document(dailyLog.date)
+        docRef.get()
+            .addOnSuccessListener { snapshot ->
+                if (snapshot.exists()) {
                     Log.d(TAG, "Irrigation log ${dailyLog.date} already exists")
                 } else {
-                    db.collection(logHistoryCollectionPath).document(dailyLog.date)
-                        .set(dailyLog)
+                    docRef.set(dailyLog)
                         .addOnSuccessListener { Log.d(TAG, "Log for ${dailyLog.date} written!") }
                         .addOnFailureListener { e -> Log.w(TAG, "Error writing log", e) }
                 }
             }
-            .addOnFailureListener { exception ->
-                Log.w(TAG, "GET failed with ", exception)
-            }
-    }
-
-
-    fun addIrrigationLog(dailyLog: DailyLog, irrigationLog: IrrigationLog) {
-        db.collection(logHistoryCollectionPath).document(dailyLog.date)
-            .update(
-                mapOf(
-                    "logs.${irrigationLog.startTime}" to irrigationLog
-                )
-            )
-            .addOnSuccessListener {
-                Log.d(ContentValues.TAG, "Log added successfully!")
-            }
             .addOnFailureListener { e ->
-                Log.w(ContentValues.TAG, "Error adding log", e)
+                Log.w(TAG, "GET failed for ${dailyLog.date}", e)
             }
     }
 
+    /**
+     * Adds a new irrigation log entry to a daily log.
+     */
+    fun addIrrigationLog(dailyLog: DailyLog, irrigationLog: IrrigationLog) {
+        db.collection(LOG_COLLECTION).document(dailyLog.date)
+            .update("logs.${irrigationLog.startTime}", irrigationLog)
+            .addOnSuccessListener { Log.d(TAG, "Log added successfully!") }
+            .addOnFailureListener { e -> Log.w(TAG, "Error adding log", e) }
+    }
+
+    /**
+     * Retrieves all daily logs as a list.
+     */
     suspend fun getAllDailyLogs(): List<DailyLog> = suspendCoroutine { continuation ->
-        db.collection(logHistoryCollectionPath)
+        db.collection(LOG_COLLECTION)
             .get()
             .addOnSuccessListener { result ->
-                val logs = result.map { document ->
-                    val data = document.data
-                    val logDate = data["date"] as String
-                    val timestamp = data["timestamp"] as Timestamp
+                val logs = result.map { doc ->
+                    val data = doc.data
+                    val logDate = data["date"] as? String ?: ""
+                    val timestamp = data["timestamp"] as? Timestamp ?: Timestamp.now()
                     val rawLogs = data["logs"] as? Map<String, Map<String, Any>> ?: emptyMap()
                     val logsMap = rawLogs.mapValues { (_, logEntry) ->
                         IrrigationLog(
@@ -85,57 +76,49 @@ class databaseController {
                 }
                 continuation.resume(logs)
             }
-            .addOnFailureListener { exception ->
-                continuation.resumeWithException(exception)
-            }
+            .addOnFailureListener { e -> continuation.resumeWithException(e) }
     }
 
+    /**
+     * Retrieves a daily log for a specific date.
+     */
     fun getDailyLog(date: String, onResult: (Map<String, Any>?) -> Unit) {
-        db.collection(logHistoryCollectionPath).document(date)
+        db.collection(LOG_COLLECTION).document(date)
             .get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    onResult(document.data)
-                } else {
-                    onResult(null)
-                }
-            }
-            .addOnFailureListener { exception ->
-                Log.w(TAG, "get failed with ", exception)
+            .addOnSuccessListener { doc -> onResult(doc.takeIf { it.exists() }?.data) }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "Failed to get daily log for $date", e)
                 onResult(null)
             }
     }
 
-    fun getRangeDailyLog(fromDate: String, toDate: String){
-        db.collection(logHistoryCollectionPath)
+    /**
+     * Retrieves daily logs in a given date range.
+     */
+    fun getRangeDailyLog(fromDate: String, toDate: String) {
+        db.collection(LOG_COLLECTION)
             .whereGreaterThanOrEqualTo("date", fromDate)
             .whereLessThanOrEqualTo("date", toDate)
             .get()
             .addOnSuccessListener { result ->
-                if (result.isEmpty ){
-                    Log.d(TAG, "GET RANGE returns empty")
-                } else{
-                    for (document in result){
-                        Log.d(TAG, "from date = ${fromDate}, to date = ${toDate}")
-                        Log.d(TAG, "${document.id} => ${document.data}")
-
+                if (result.isEmpty) {
+                    Log.d(TAG, "No logs found between $fromDate and $toDate")
+                } else {
+                    result.forEach { doc ->
+                        Log.d(TAG, "${doc.id} => ${doc.data}")
                     }
                 }
             }
-            .addOnFailureListener { exception ->
-                Log.w(TAG, "Error getting range logs ", exception)
-            }
+            .addOnFailureListener { e -> Log.w(TAG, "Error getting range logs", e) }
     }
 
-    fun addSchedule(schedule: Schedule){
-        /* USED FOR CREATING AND UPDATING SCHEDULES */
-        db.collection(scheduleCollectionPath)
-            .document(schedule.day.name)
+    /**
+     * Adds or updates an irrigation schedule.
+     */
+    fun addSchedule(schedule: Schedule) {
+        db.collection(SCHEDULE_COLLECTION).document(schedule.day.name)
             .set(schedule)
-            .addOnSuccessListener { Log.d(TAG, "Log for ${schedule.day.name} written!") }
-            .addOnFailureListener { e -> Log.w(TAG, "Error writing log", e) }
+            .addOnSuccessListener { Log.d(TAG, "Schedule for ${schedule.day.name} written!") }
+            .addOnFailureListener { e -> Log.w(TAG, "Error writing schedule", e) }
     }
-
-
-
 }
