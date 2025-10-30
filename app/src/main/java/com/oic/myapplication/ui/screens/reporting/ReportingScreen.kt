@@ -62,17 +62,6 @@ fun ReportingScreen() {
     val headerTimeFmt = remember { DateTimeFormatter.ofPattern("h:mm a") }
     val cardDateFmt = remember { DateTimeFormatter.ofPattern("dd/MM/yy") }
 
-    // Weekly litres aggregation
-    val weeklyLitres = remember(dailyLogs) {
-        val weekMap = mutableMapOf<LocalDate, Int>()
-        dailyLogs.forEach { day ->
-            val date = LocalDate.parse(day.date)
-            val weekStart = date.minusDays(date.dayOfWeek.value.toLong() - 1)
-            val total = day.logs.values.sumOf { it.litres }
-            weekMap[weekStart] = (weekMap[weekStart] ?: 0) + total
-        }
-        weekMap.toSortedMap()
-    }
 
     Column(
         Modifier
