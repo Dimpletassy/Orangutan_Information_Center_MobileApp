@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.oic.myapplication.R
-import com.oic.myapplication.services.database.databaseController
+import com.oic.myapplication.services.database.DatabaseController
 import com.oic.myapplication.services.database.models.DailyLog
 import com.oic.myapplication.services.database.models.IrrigationLog
 import com.oic.myapplication.ui.palette.*
@@ -142,7 +142,7 @@ fun SchedulingScreen(
     val todayDate = LocalDate.now().toString() // "2025-10-14"
     val dailyLog = DailyLog(date = todayDate, logs = logMap)
 
-    val dbController = databaseController()
+    val dbController = DatabaseController()
 
     // Weather (Medan)
     val LAT = 3.5952

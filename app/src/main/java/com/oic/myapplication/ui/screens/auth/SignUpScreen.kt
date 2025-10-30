@@ -29,7 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.oic.myapplication.services.auth.firebaseSignup
+import com.oic.myapplication.services.auth.FirebaseAuthService
 import com.oic.myapplication.services.auth.validateSignUpInput
 import com.oic.myapplication.ui.components.*
 import com.oic.myapplication.ui.palette.*
@@ -39,9 +39,11 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
     var first by remember { mutableStateOf("") }
     var last by remember { mutableStateOf("") }
     var contact by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var stay by remember { mutableStateOf(false) }
+
+    val firebaseAuth = FirebaseAuthService()
 
     Column(Modifier.fillMaxSize()) {
         HeaderWithImage(selectedDot = 2)
@@ -61,24 +63,52 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
                 Text("Sign up", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CocoaDeep)
                 Spacer(Modifier.height(12.dp))
 
+                /* INPUT FIELDS */
+                // First Name
                 PillField("First Name/s", first, { first = it }, placeholder = "Enter First Name/s", leadingIcon = Icons.Outlined.Person)
                 Spacer(Modifier.height(10.dp))
+
+                // Last Name
                 PillField("Surname", last, { last = it }, placeholder = "Enter Surname", leadingIcon = Icons.Outlined.Person)
                 Spacer(Modifier.height(10.dp))
+
+                // Phone/Email
                 PillField("Phone Number / Email", contact, { contact = it }, placeholder = "Enter Phone Number / Email", leadingIcon = Icons.Outlined.Email)
                 Spacer(Modifier.height(10.dp))
-                PillField("Password", pass, { pass = it }, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
+
+                // Password
+                PillField("Password", password, { password = it }, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
                 Spacer(Modifier.height(10.dp))
                 PillField("Re-Enter Password", confirm, { confirm = it }, isPassword = true, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
 
+                /* Stay singed in checkbox */
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
                     Checkbox(checked = stay, onCheckedChange = { stay = it })
                     Text("Stay signed in", color = Cocoa)
                 }
 
+                /* Action buttons*/
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FilledButton("Sign Up", onClick = onSubmit, container = GoldDark, modifier = Modifier.weight(1f))
+                    FilledButton("Sign Up", onClick = {
+                        // validate inputs
+                        // TODO:
+
+                        // Call firebase signup
+                        firebaseAuth.signup(
+                            firstName = first,
+                            lastName = last,
+                            email = contact,
+                            password = password
+                        ) { success ->
+                            if (success) {
+                                Log.d("SignUpScreen", "Signup Successful!")
+                                onSubmit()
+                            } else{
+                                Log.w("SignUpScreen", "Signup Failed")
+                            }
+                        }
+                    }, container = GoldDark, modifier = Modifier.weight(1f))
                     FilledButton("Login", onClick = onGoLogin, container = Cocoa, modifier = Modifier.weight(1f))
                 }
             }

@@ -3,43 +3,55 @@ package com.oic.myapplication.services.auth
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 
-val auth = FirebaseAuth.getInstance()
+class FirebaseAuthService {
 
-fun firebaseSignup(firstName: String,
-                   lastName: String,
-                   email: String,
-                   password: String,
-                   onSuccess: (status: Boolean) -> Unit){
+    companion object {
+        private const val TAG = "FirebaseAuth"
+    }
 
-    /* CREATES USERS TO FIREBASE CLOUD AUTHENTICATION SERVICE USING EMAIL AND PASSWORD ONLY */
-    auth.createUserWithEmailAndPassword(email, password)
-        .addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                Log.d("FirebaseAuth", "createUserWithEmail:success")
-                onSuccess(true)
-                //todo: add ui
-            } else {
-                Log.w("FirebaseAuth", "createUserWithEmail:failure", task.exception)
-                onSuccess(false)
-                //todo: add error ui
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+
+    /**
+     * Signs up a new user with email and password.
+     */
+    fun signup(
+        firstName: String,
+        lastName: String,
+        email: String,
+        password: String,
+        onResult: (success: Boolean) -> Unit
+    ) {
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "createUserWithEmail:success")
+                    onResult(true)
+                    // TODO: Add UI feedback
+                } else {
+                    Log.w(TAG, "createUserWithEmail:failure", task.exception)
+                    onResult(false)
+                    // TODO: Add error UI feedback
+                }
             }
-        }
+    }
 
-}
-
-fun firebaseLogin(email: String,
-                  password: String,
-                  onSuccess: (success: Boolean) -> Unit){
-    /* LOGS IN REGISTERED USERS FROM FIREBASE */
-    val status: String
-    auth.signInWithEmailAndPassword(email, password)
-        .addOnCompleteListener { task ->
-            if (task.isSuccessful){
-                Log.d("FirebaseAuth", "loginUserWithEmail: success")
-                onSuccess(true)
-            } else {
-                Log.d("FirebaseAuth", "loginUserWithEmail: failure")
-                onSuccess(false)
+    /**
+     * Logs in a registered user with email and password.
+     */
+    fun login(
+        email: String,
+        password: String,
+        onResult: (success: Boolean) -> Unit
+    ) {
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "loginUserWithEmail:success")
+                    onResult(true)
+                } else {
+                    Log.w(TAG, "loginUserWithEmail:failure", task.exception)
+                    onResult(false)
+                }
             }
-        }
+    }
 }

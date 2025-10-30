@@ -82,4 +82,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // UI GRAPHS
+    implementation("com.patrykandpatrick.vico:core:1.11.1")
+    implementation("com.patrykandpatrick.vico:compose:1.11.1")
 }
+

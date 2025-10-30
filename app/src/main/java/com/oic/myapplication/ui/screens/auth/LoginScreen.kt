@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oic.myapplication.R
+import com.oic.myapplication.services.auth.FirebaseAuthService
 import com.oic.myapplication.ui.components.DotsIndicator
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.PillField
@@ -44,6 +45,8 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var staySignedIn by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    val firebaseAuth = FirebaseAuthService()
 
     // Make the header image ~48% of screen height (nice balance on most phones)
     val screenH = LocalConfiguration.current.screenHeightDp
@@ -142,13 +145,11 @@ fun LoginScreen(
                         onClick = {
                             if (username.isBlank() || password.isBlank()) {
                                 error = "Please enter email or password"
-                            } else {
-                                // your firebaseLogin() call from before
-                                com.oic.myapplication.services.auth.firebaseLogin(
-                                    username.trim(),
-                                    password
-                                ) { success ->
-                                    if (success) onLoginSuccess() else {
+                            } else{
+                                firebaseAuth.login(username.trim(), password){success ->
+                                    if (success){
+                                        onLoginSuccess()
+                                    } else {
                                         error = "Invalid email or password"
                                     }
                                 }
@@ -162,3 +163,5 @@ fun LoginScreen(
         }
     }
 }
+
+
