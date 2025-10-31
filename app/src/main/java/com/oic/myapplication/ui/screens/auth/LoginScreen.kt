@@ -48,15 +48,6 @@ fun LoginScreen(
 
     val firebaseAuth = FirebaseAuthService()
 
-    // db test
-    val dbController = DatabaseController()
-
-    dbController.upsertDay(
-        day = Day.MONDAY,
-        morning = ScheduleEntry(startTime = "7:00 AM", litres = 20, enabled = true)
-    )
-
-
     // Make the header image ~48% of screen height (nice balance on most phones)
     val screenH = LocalConfiguration.current.screenHeightDp
     val headerH = (screenH * 0.48f).dp
