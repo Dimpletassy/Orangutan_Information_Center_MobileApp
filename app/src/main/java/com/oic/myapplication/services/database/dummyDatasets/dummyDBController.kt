@@ -6,6 +6,9 @@ import com.oic.myapplication.services.database.DatabaseController
 import com.oic.myapplication.services.database.models.DailyLog
 import com.oic.myapplication.services.database.models.IrrigationLog
 
+/**
+ *  Adds dummy data to firebase DB
+ */
 fun populateDatabaseFromAssets() {
     val gson = Gson()
 

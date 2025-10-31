@@ -22,13 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+
 import com.oic.myapplication.R
 import com.oic.myapplication.services.auth.FirebaseAuthService
+import com.oic.myapplication.services.database.DatabaseController
+import com.oic.myapplication.services.database.models.Day
+import com.oic.myapplication.services.database.models.Period
+import com.oic.myapplication.services.database.models.ScheduleEntry
 import com.oic.myapplication.ui.components.DotsIndicator
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.PillField
@@ -47,6 +47,15 @@ fun LoginScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     val firebaseAuth = FirebaseAuthService()
+
+    // db test
+    val dbController = DatabaseController()
+
+    dbController.upsertDay(
+        day = Day.MONDAY,
+        morning = ScheduleEntry(startTime = "7:00 AM", litres = 20, enabled = true)
+    )
+
 
     // Make the header image ~48% of screen height (nice balance on most phones)
     val screenH = LocalConfiguration.current.screenHeightDp

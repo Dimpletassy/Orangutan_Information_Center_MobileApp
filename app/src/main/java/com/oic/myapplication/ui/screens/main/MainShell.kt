@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,6 +26,7 @@ import com.oic.myapplication.ui.palette.*
 import com.oic.myapplication.ui.screens.account.AccountScreen
 import com.oic.myapplication.ui.screens.notifications.NotificationsScreen
 import com.oic.myapplication.ui.screens.reporting.ReportingScreen
+import com.oic.myapplication.ui.screens.scheduling.MainHomeScreen
 import com.oic.myapplication.ui.screens.scheduling.SchedulingScreen
 
 @Composable
@@ -32,17 +34,19 @@ fun MainShell(
     innerNav: NavHostController,
     onLogout: () -> Unit,
     openReset: () -> Unit,
-    openSiteDetails: () -> Unit,   // ← NEW: navigate to Site Details
+    openSiteDetails: () -> Unit,
 ) {
+    // Make sure you have: object Routes { const val Home="home"; const val Schedule="schedule"; const val Reporting="reporting"; const val Account="account"; const val Notifications="notifications" }
     val tabs = listOf(
-        Triple(Routes.Home,      Icons.Outlined.Home,          "Home"),
-        Triple(Routes.Reporting, Icons.Outlined.CalendarMonth, "Reporting"),
-        Triple(Routes.Account,   Icons.Outlined.AccountCircle, "Account"),
+        Triple(Routes.Home,     Icons.Outlined.Home,          "Home"),
+        Triple(Routes.Schedule, Icons.Outlined.Schedule,      "Scheduling"),
+        Triple(Routes.Reporting,Icons.Outlined.CalendarMonth, "Reporting"),
+        Triple(Routes.Account,  Icons.Outlined.AccountCircle, "Account"),
     )
 
     Scaffold(
-        containerColor = Color.Transparent,                 // was SurfaceWhite
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),     // let child screens handle insets
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             NavigationBar(
                 containerColor = Latte.copy(alpha = 0.95f),
@@ -78,13 +82,22 @@ fun MainShell(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Routes.Home) {
-                SchedulingScreen(
+                MainHomeScreen(
                     onOpenReporting     = { innerNav.navigate(Routes.Reporting) },
                     onOpenAccount       = { innerNav.navigate(Routes.Account) },
                     onOpenNotifications = { innerNav.navigate(Routes.Notifications) },
-                    onBackToSites       = openSiteDetails           // ← wired to back arrow
+                    onBackToSites       = openSiteDetails
                 )
             }
+
+            // NEW: Scheduling page route
+            composable(Routes.Schedule) {
+                SchedulingScreen (
+                    onBack = { innerNav.popBackStack() },
+                    onOpenNotifications = { innerNav.navigate(Routes.Notifications) }
+                )
+            }
+
             composable(Routes.Reporting) { ReportingScreen() }
             composable(Routes.Account)   { AccountScreen(onLogout = onLogout, onChangePassword = openReset) }
             composable(Routes.Notifications) { NotificationsScreen() }

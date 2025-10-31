@@ -74,6 +74,7 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.compose.animation:animation")
     implementation("com.google.android.gms:play-services-cronet:18.0.1")
+    implementation(libs.androidx.runtime.saveable)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

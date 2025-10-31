@@ -13,7 +13,9 @@ object Routes {
     const val SiteDetails = "site_details"
 
     // inner (tabs + extras)
-    const val Home        = "home"        // Scheduling
+    const val Home        = "home"
+
+    const val Schedule    = "schedule"
     const val Reporting   = "reporting"
     const val Account     = "account"
     const val Notifications = "notifications"
