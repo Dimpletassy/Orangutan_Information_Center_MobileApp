@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,6 +49,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
+import com.google.firebase.auth.FirebaseAuth
 
 /* ---------------- Constants ---------------- */
 
@@ -492,7 +494,17 @@ private fun TopBar(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Selamat Datang, Bang Nanda 😊", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = SurfaceWhite)
+                // ✅ Safely fetch the latest user name from Firebase
+                val user = FirebaseAuth.getInstance().currentUser
+                user?.reload()
+                val fullName = user?.displayName?.trim()?.takeIf { it.isNotEmpty() } ?: "User"
+
+                Text(
+                    text = "Selamat Datang, $fullName 😊",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = SurfaceWhite
+                )
 
                 Box {
                     IconButton(onClick = onOpenNotifications) { Text("🔔", fontSize = 26.sp, lineHeight = 26.sp) }
@@ -519,7 +531,7 @@ private fun TopBar(
                 .align(Alignment.CenterStart)
                 .offset(y = 12.dp)
         ) {
-            Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back", tint = SurfaceWhite)
+            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = SurfaceWhite)
         }
     }
 }

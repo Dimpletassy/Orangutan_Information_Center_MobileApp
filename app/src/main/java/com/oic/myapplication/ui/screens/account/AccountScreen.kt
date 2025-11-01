@@ -1,122 +1,154 @@
 package com.oic.myapplication.ui.screens.account
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.oic.myapplication.ui.palette.*   // Latte, Cocoa, SurfaceWhite, GoldDark, CocoaDeep, CardXL
-
-import kotlinx.coroutines.delay
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
+import com.oic.myapplication.ui.components.HeaderWithImage
+import com.oic.myapplication.ui.components.PillField
+import com.oic.myapplication.ui.palette.*
 
 @Composable
 fun AccountScreen(
     onLogout: () -> Unit,
     onChangePassword: () -> Unit
 ) {
-    // --- Live date/time (ticks every minute) ---
-    val zone = ZoneId.systemDefault()
-    var now by remember { mutableStateOf(LocalDateTime.now(zone)) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = LocalDateTime.now(zone)
-            delay(60_000)
-        }
-    }
-    val headerDateFmt = remember { DateTimeFormatter.ofPattern("EEEE, d MMMM, yyyy") }
-    val headerTimeFmt = remember { DateTimeFormatter.ofPattern("h:mm a") }
+    val auth = FirebaseAuth.getInstance()
+    val user = auth.currentUser
 
-    // --- Form state (kept as you had it) ---
-    var first by remember { mutableStateOf("Test") }
-    var last  by remember { mutableStateOf("User") }
-    var email by remember { mutableStateOf("test@oic.com") }
-    var site  by remember { mutableStateOf("Jl. Pantai buaya, Bukit MAS, Kec. Besitang, Kabupaten Langkat, Sumatera Utara 20859") }
+    // Split Firebase displayName into first and last parts if possible
+    val displayParts = user?.displayName?.split(" ") ?: listOf("", "")
+    var firstName by remember { mutableStateOf(displayParts.getOrNull(0) ?: "") }
+    var lastName by remember { mutableStateOf(displayParts.getOrNull(1) ?: "") }
+    var email by remember { mutableStateOf(user?.email ?: "") }
+    var message by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Latte)
-            .systemBarsPadding()
-    ) {
-        // Header
-        Surface(color = Cocoa.copy(alpha = .30f)) {
-            Column(Modifier.fillMaxWidth().padding(26.dp)) {
-                Text("My Account:", color = SurfaceWhite, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "${now.format(headerDateFmt)} • ${now.format(headerTimeFmt)}",
-                    color = SurfaceWhite.copy(alpha = .9f)
-                )
-            }
-        }
+    Column(Modifier.fillMaxSize()) {
+        HeaderWithImage(selectedDot = 4, titleOverride = "Account")
 
-        Spacer(Modifier.height(12.dp))
-
-        LabeledCard(label = "First Name/s :") {
-            TextField(value = first, onValueChange = { first = it }, singleLine = true)
-        }
-        LabeledCard(label = "Surname :") {
-            TextField(value = last, onValueChange = { last = it }, singleLine = true)
-        }
-        LabeledCard(label = "Phone Number/ Email:") {
-            TextField(value = email, onValueChange = { email = it }, singleLine = true)
-        }
-
-        // Password row – link to Reset
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-            Text("Password", color = GoldDark, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text("●●●●●●●●", color = CocoaDeep)
-                TextButton(onClick = onChangePassword) { Text("Change password") }
-            }
-        }
-
-        LabeledCard(label = "Site Address:") {
-            TextField(value = site, onValueChange = { site = it })
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Row(
-            Modifier.padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Surface(
+            shape = CardXL,
+            color = SurfaceWhite,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
         ) {
-            Button(
-                onClick = { /* save profile later */ },
-                colors = ButtonDefaults.buttonColors(containerColor = GoldDark, contentColor = SurfaceWhite),
-                shape = CardXL,
-                modifier = Modifier.weight(1f)
-            ) { Text("Save") }
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "My Account",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = CocoaDeep
+                )
+                Spacer(Modifier.height(16.dp))
 
-            OutlinedButton(
-                onClick = onLogout,
-                shape = CardXL,
-                modifier = Modifier.weight(1f)
-            ) { Text("Log out", color = CocoaDeep) }
+                // First Name
+                PillField(
+                    label = "First Name",
+                    value = firstName,
+                    onValueChange = { firstName = it },
+                    placeholder = "Enter First Name",
+                    leadingIcon = Icons.Outlined.Person
+                )
+                Spacer(Modifier.height(10.dp))
+
+                // Last Name
+                PillField(
+                    label = "Last Name",
+                    value = lastName,
+                    onValueChange = { lastName = it },
+                    placeholder = "Enter Last Name",
+                    leadingIcon = Icons.Outlined.Person
+                )
+                Spacer(Modifier.height(10.dp))
+
+                // Email (readonly)
+                PillField(
+                    label = "Email",
+                    value = email,
+                    onValueChange = {},
+                    placeholder = "Email",
+                    leadingIcon = Icons.Outlined.Email
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        val fullName = "$firstName $lastName".trim()
+                        val profileUpdate = UserProfileChangeRequest.Builder()
+                            .setDisplayName(fullName)
+                            .build()
+
+                        isSaving = true
+                        user?.updateProfile(profileUpdate)
+                            ?.addOnCompleteListener { task ->
+                                isSaving = false
+                                if (task.isSuccessful) {
+                                    user.reload() // refresh Firebase user data
+                                    message = "✅ Profile updated successfully!"
+                                } else {
+                                    message = "❌ Failed to update profile."
+                                }
+                            }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldDark),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = SurfaceWhite,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text("Save Changes")
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Button(
+                    onClick = { onChangePassword() },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldLight),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Change Password")
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        auth.signOut()
+                        onLogout()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Cocoa),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Logout")
+                }
+
+                Spacer(Modifier.height(16.dp))
+                if (message.isNotEmpty()) Text(text = message, color = Cocoa)
+            }
         }
-        Spacer(Modifier.height(18.dp))
     }
-}
-
-@Composable
-private fun LabeledCard(label: String, content: @Composable () -> Unit) {
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Text(label, color = GoldDark, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        Surface(shape = CardXL, color = SurfaceWhite, tonalElevation = 1.dp) {
-            Box(Modifier.padding(12.dp)) { content() }
-        }
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-private fun AccountPreview() {
-    AccountScreen(onLogout = {}, onChangePassword = {})
 }

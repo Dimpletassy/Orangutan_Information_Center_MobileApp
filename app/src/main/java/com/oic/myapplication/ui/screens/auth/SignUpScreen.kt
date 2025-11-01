@@ -1,15 +1,7 @@
 package com.oic.myapplication.ui.screens.auth
 
-import android.content.ContentValues.TAG
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -17,20 +9,17 @@ import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.oic.myapplication.services.auth.FirebaseAuthService
-import com.oic.myapplication.services.auth.validateSignUpInput
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.oic.myapplication.ui.components.*
 import com.oic.myapplication.ui.palette.*
 
@@ -42,8 +31,10 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var stay by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
-    val firebaseAuth = FirebaseAuthService()
+    val auth = FirebaseAuth.getInstance()
 
     Column(Modifier.fillMaxSize()) {
         HeaderWithImage(selectedDot = 2)
@@ -60,57 +51,165 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Sign up", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CocoaDeep)
+                Text(
+                    "Sign up",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = CocoaDeep
+                )
                 Spacer(Modifier.height(12.dp))
 
-                /* INPUT FIELDS */
-                // First Name
-                PillField("First Name/s", first, { first = it }, placeholder = "Enter First Name/s", leadingIcon = Icons.Outlined.Person)
+                // --- Input fields ---
+                PillField(
+                    "First Name",
+                    first,
+                    { first = it },
+                    placeholder = "Enter First Name",
+                    leadingIcon = Icons.Outlined.Person
+                )
                 Spacer(Modifier.height(10.dp))
 
-                // Last Name
-                PillField("Surname", last, { last = it }, placeholder = "Enter Surname", leadingIcon = Icons.Outlined.Person)
+                PillField(
+                    "Last Name",
+                    last,
+                    { last = it },
+                    placeholder = "Enter Last Name",
+                    leadingIcon = Icons.Outlined.Person
+                )
                 Spacer(Modifier.height(10.dp))
 
-                // Phone/Email
-                PillField("Email", contact, { contact = it }, placeholder = "Enter Your Email", leadingIcon = Icons.Outlined.Email)
+                PillField(
+                    "Email",
+                    contact,
+                    { contact = it },
+                    placeholder = "Enter Email Address",
+                    leadingIcon = Icons.Outlined.Email
+                )
                 Spacer(Modifier.height(10.dp))
 
-                // Password
-                PillField("Password", password, { password = it }, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
+                PillField(
+                    "Password",
+                    password,
+                    { password = it },
+                    isPassword = true,
+                    placeholder = "Enter Password",
+                    leadingIcon = Icons.Outlined.Lock
+                )
                 Spacer(Modifier.height(10.dp))
-                PillField("Re-Enter Password", confirm, { confirm = it }, isPassword = true, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
 
-                /* Stay singed in checkbox */
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                PillField(
+                    "Re-Enter Password",
+                    confirm,
+                    { confirm = it },
+                    isPassword = true,
+                    placeholder = "Re-enter Password",
+                    leadingIcon = Icons.Outlined.Lock
+                )
+
+                // Stay signed in
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 6.dp)
+                ) {
                     Checkbox(checked = stay, onCheckedChange = { stay = it })
                     Text("Stay signed in", color = Cocoa)
                 }
 
-                /* Action buttons*/
                 Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FilledButton("Sign Up", onClick = {
-                        // validate inputs
-                        // TODO:
 
-                        // Call firebase signup
-                        firebaseAuth.signup(
-                            firstName = first,
-                            lastName = last,
-                            email = contact,
-                            password = password
-                        ) { success ->
-                            if (success) {
-                                Log.d("SignUpScreen", "Signup Successful!")
-                                onSubmit()
-                            } else{
-                                Log.w("SignUpScreen", "Signup Failed")
-                            }
-                        }
-                    }, container = GoldDark, modifier = Modifier.weight(1f))
-                    FilledButton("Login", onClick = onGoLogin, container = Cocoa, modifier = Modifier.weight(1f))
+                // Loading spinner
+                if (isLoading) {
+                    CircularProgressIndicator(color = GoldDark)
+                    Spacer(Modifier.height(12.dp))
                 }
+
+                // --- Action buttons ---
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FilledButton(
+                        "Sign Up",
+                        onClick = {
+                            if (contact.isBlank() || password.isBlank() || confirm.isBlank() || first.isBlank() || last.isBlank()) {
+                                message = "Please fill in all fields."
+                                return@FilledButton
+                            }
+                            if (password != confirm) {
+                                message = "Passwords do not match."
+                                return@FilledButton
+                            }
+
+                            isLoading = true
+                            message = ""
+
+                            // Create user in Firebase
+                            auth.createUserWithEmailAndPassword(contact, password)
+                                .addOnCompleteListener { task ->
+                                    isLoading = false
+                                    if (task.isSuccessful) {
+                                        val user = auth.currentUser
+                                        val fullName = "$first $last".trim()
+
+                                        // Update Firebase display name (used on Home + Account)
+                                        val profileUpdates = UserProfileChangeRequest.Builder()
+                                            .setDisplayName(fullName)
+                                            .build()
+
+                                        user?.updateProfile(profileUpdates)
+                                            ?.addOnCompleteListener {
+                                                user.reload() // refresh immediately
+                                                Log.d("SignUpScreen", "Display name updated: $fullName")
+                                            }
+
+                                        // Send verification email
+                                        user?.sendEmailVerification()
+                                            ?.addOnCompleteListener { emailTask ->
+                                                if (emailTask.isSuccessful) {
+                                                    message =
+                                                        "✅ Account created! Verification email sent to $contact."
+                                                    Log.d("SignUpScreen", "Verification email sent.")
+                                                } else {
+                                                    message =
+                                                        "⚠️ Account created, but failed to send verification email."
+                                                    Log.w(
+                                                        "SignUpScreen",
+                                                        "Email send failed",
+                                                        emailTask.exception
+                                                    )
+                                                }
+                                            }
+
+                                        // Handle stay signed in
+                                        if (!stay) {
+                                            auth.signOut()
+                                            Log.d("SignUpScreen", "User signed out after signup.")
+                                        } else {
+                                            Log.d("SignUpScreen", "User chose to stay signed in.")
+                                        }
+
+                                        onSubmit()
+                                    } else {
+                                        message =
+                                            "❌ Signup failed: ${task.exception?.localizedMessage ?: "Unknown error"}"
+                                        Log.w("SignUpScreen", "Signup failed", task.exception)
+                                    }
+                                }
+                        },
+                        container = GoldDark,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    FilledButton(
+                        "Login",
+                        onClick = onGoLogin,
+                        container = Cocoa,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                if (message.isNotEmpty()) Text(text = message, color = Cocoa)
             }
         }
     }

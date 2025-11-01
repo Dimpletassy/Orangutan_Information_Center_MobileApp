@@ -4,13 +4,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,14 +19,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
-
+import com.google.firebase.auth.FirebaseAuth
 import com.oic.myapplication.R
 import com.oic.myapplication.services.auth.FirebaseAuthService
-import com.oic.myapplication.services.database.DatabaseController
-import com.oic.myapplication.services.database.models.Day
-import com.oic.myapplication.services.database.models.Period
-import com.oic.myapplication.services.database.models.ScheduleEntry
 import com.oic.myapplication.ui.components.DotsIndicator
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.PillField
@@ -39,22 +32,26 @@ fun LoginScreen(
     validateCredentials: (String, String) -> Boolean,
     onLoginSuccess: () -> Unit,
     onSignUp: () -> Unit,
-    onForgot: () -> Unit
+    onForgot: () -> Unit // kept for navigation if you want a separate forgot page
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var staySignedIn by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showForgotDialog by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetMessage by remember { mutableStateOf("") }
+    var isResetLoading by remember { mutableStateOf(false) }
 
     val firebaseAuth = FirebaseAuthService()
+    val auth = FirebaseAuth.getInstance()
 
-    // Make the header image ~48% of screen height (nice balance on most phones)
     val screenH = LocalConfiguration.current.screenHeightDp
     val headerH = (screenH * 0.48f).dp
 
     Column(modifier = Modifier.fillMaxSize()) {
 
-        // BIGGER header image
+        // Header image
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -74,7 +71,6 @@ fun LoginScreen(
             )
         }
 
-        // Pull the card up over the image so there's less white
         Surface(
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             color = SurfaceWhite,
@@ -82,7 +78,7 @@ fun LoginScreen(
             shadowElevation = 2.dp,
             modifier = Modifier
                 .fillMaxSize()
-                .offset(y = (-24).dp)   // <- overlap
+                .offset(y = (-24).dp)
         ) {
             Column(
                 modifier = Modifier
@@ -107,7 +103,8 @@ fun LoginScreen(
                     value = password,
                     onValueChange = { password = it },
                     placeholder = "Enter password",
-                    leadingIcon = Icons.Outlined.Lock
+                    leadingIcon = Icons.Outlined.Lock,
+                    isPassword = true
                 )
 
                 Row(
@@ -121,7 +118,9 @@ fun LoginScreen(
                         Checkbox(checked = staySignedIn, onCheckedChange = { staySignedIn = it })
                         Text("Stay Signed in", color = Cocoa)
                     }
-                    TextButton(onClick = onForgot) { Text("Forgot Password?", color = Cocoa) }
+                    TextButton(onClick = { showForgotDialog = true }) { // ← open reset dialog
+                        Text("Forgot Password?", color = Cocoa)
+                    }
                 }
 
                 if (error != null) {
@@ -144,10 +143,10 @@ fun LoginScreen(
                         text = "Login",
                         onClick = {
                             if (username.isBlank() || password.isBlank()) {
-                                error = "Please enter email or password"
-                            } else{
-                                firebaseAuth.login(username.trim(), password){success ->
-                                    if (success){
+                                error = "Please enter email and password"
+                            } else {
+                                firebaseAuth.login(username.trim(), password) { success ->
+                                    if (success) {
                                         onLoginSuccess()
                                     } else {
                                         error = "Invalid email or password"
@@ -162,6 +161,69 @@ fun LoginScreen(
             }
         }
     }
+
+    // ---------- Forgot Password Dialog ----------
+    if (showForgotDialog) {
+        AlertDialog(
+            onDismissRequest = { showForgotDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (resetEmail.isBlank()) {
+                        resetMessage = "Please enter your email."
+                    } else {
+                        isResetLoading = true
+                        resetMessage = ""
+                        auth.sendPasswordResetEmail(resetEmail.trim())
+                            .addOnCompleteListener { task ->
+                                isResetLoading = false
+                                resetMessage = if (task.isSuccessful) {
+                                    "✅ Password reset email sent to $resetEmail"
+                                } else {
+                                    "❌ Failed to send reset email: ${task.exception?.localizedMessage}"
+                                }
+                            }
+                    }
+                }) {
+                    Text("Send", color = GoldDark)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showForgotDialog = false
+                    resetEmail = ""
+                    resetMessage = ""
+                }) {
+                    Text("Cancel", color = Cocoa)
+                }
+            },
+            title = { Text("Forgot Password", fontWeight = FontWeight.Bold, color = CocoaDeep) },
+            text = {
+                Column {
+                    Text("Enter your registered email to receive a password reset link:")
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = { resetEmail = it },
+                        placeholder = { Text("Email address") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (isResetLoading) {
+                        Spacer(Modifier.height(10.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = GoldDark,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    if (resetMessage.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(resetMessage, color = Cocoa, fontSize = 14.sp)
+                    }
+                }
+            },
+            containerColor = SurfaceWhite,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
-
-
