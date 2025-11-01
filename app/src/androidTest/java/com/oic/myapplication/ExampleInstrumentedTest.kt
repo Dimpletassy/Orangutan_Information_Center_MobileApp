@@ -2,24 +2,25 @@ package com.oic.myapplication
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
 import com.oic.myapplication.services.database.DatabaseController
-import com.oic.myapplication.services.database.models.Day
-import com.oic.myapplication.services.database.models.Period
-import com.oic.myapplication.services.database.models.ScheduleDay
-import com.oic.myapplication.services.database.models.ScheduleEntry
-import org.junit.Assert.*
-import org.junit.Test
+import com.oic.myapplication.services.database.models.*
+import org.junit.*
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import org.junit.Assert.*
+
 
 @RunWith(AndroidJUnit4::class)
 class ExampleInstrumentedTest {
 
     private val db = DatabaseController()
     private val TIMEOUT = 10L // seconds
+    private val auth by lazy { FirebaseAuth.getInstance() }
+
 
     @Test
     fun useAppContext() {
