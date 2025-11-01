@@ -73,7 +73,7 @@ fun SignUpScreen(onSubmit: () -> Unit, onGoLogin: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
 
                 // Phone/Email
-                PillField("Phone Number / Email", contact, { contact = it }, placeholder = "Enter Phone Number / Email", leadingIcon = Icons.Outlined.Email)
+                PillField("Email", contact, { contact = it }, placeholder = "Enter Your Email", leadingIcon = Icons.Outlined.Email)
                 Spacer(Modifier.height(10.dp))
 
                 // Password

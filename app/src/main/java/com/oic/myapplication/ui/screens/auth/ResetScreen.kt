@@ -1,76 +1,142 @@
 package com.oic.myapplication.ui.screens.auth
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuth
 import com.oic.myapplication.ui.components.FilledButton
 import com.oic.myapplication.ui.components.HeaderWithImage
 import com.oic.myapplication.ui.components.PillField
-import com.oic.myapplication.ui.palette.CardXL
-import com.oic.myapplication.ui.palette.Cocoa
-import com.oic.myapplication.ui.palette.GoldDark
-import com.oic.myapplication.ui.palette.SurfaceWhite
+import com.oic.myapplication.ui.palette.*
 
 @Composable
 fun ResetScreen(onDone: () -> Unit) {
-    var first by remember { mutableStateOf("") }
-    var last by remember { mutableStateOf("") }
-    var contact by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var stay by remember { mutableStateOf(false) }
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val auth = FirebaseAuth.getInstance()
+    val user = auth.currentUser
 
     Column(Modifier.fillMaxSize()) {
-        HeaderWithImage(selectedDot = 3, titleOverride = "Re-set Password")
+        HeaderWithImage(selectedDot = 3, titleOverride = "Reset Password")
+
         Surface(
-            shape = CardXL, color = SurfaceWhite,
+            shape = CardXL,
+            color = SurfaceWhite,
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
         ) {
             Column(
                 Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                PillField("First Name/s", first, { first = it }, placeholder = "Enter First Name/s", leadingIcon = Icons.Outlined.Person)
+                PillField(
+                    label = "Old Password",
+                    value = oldPassword,
+                    onValueChange = { oldPassword = it },
+                    isPassword = true,
+                    placeholder = "Enter old password",
+                    leadingIcon = Icons.Outlined.Lock
+                )
                 Spacer(Modifier.height(10.dp))
-                PillField("Surname", last, { last = it }, placeholder = "Enter Surname", leadingIcon = Icons.Outlined.Person)
-                Spacer(Modifier.height(10.dp))
-                PillField("Phone Number / Email", contact, { contact = it }, placeholder = "Enter Phone Number / Email", leadingIcon = Icons.Outlined.Email)
-                Spacer(Modifier.height(10.dp))
-                PillField("Password", pass, { pass = it }, isPassword = true, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
-                Spacer(Modifier.height(10.dp))
-                PillField("Re-Enter Password", confirm, { confirm = it }, isPassword = true, placeholder = "Enter Password", leadingIcon = Icons.Outlined.Lock)
 
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                    Checkbox(checked = stay, onCheckedChange = { stay = it })
-                    Text("Stay signed in", color = Cocoa)
+                PillField(
+                    label = "New Password",
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    isPassword = true,
+                    placeholder = "Enter new password",
+                    leadingIcon = Icons.Outlined.Lock
+                )
+                Spacer(Modifier.height(10.dp))
+
+                PillField(
+                    label = "Re-type New Password",
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    isPassword = true,
+                    placeholder = "Re-enter new password",
+                    leadingIcon = Icons.Outlined.Lock
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                // Show progress indicator while updating
+                if (isLoading) {
+                    CircularProgressIndicator(color = GoldDark)
+                    Spacer(Modifier.height(20.dp))
                 }
 
-                Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
-                    FilledButton("Sign Up", onClick = onDone, container = GoldDark, modifier = Modifier.weight(1f))
-                    FilledButton("Login", onClick = onDone, container = Cocoa, modifier = Modifier.weight(1f))
+                FilledButton(
+                    text = "Update Password",
+                    onClick = {
+                        if (user == null) {
+                            message = "No user logged in."
+                            return@FilledButton
+                        }
+                        if (newPassword != confirmPassword) {
+                            message = "New passwords do not match."
+                            return@FilledButton
+                        }
+
+                        val email = user.email
+                        if (email.isNullOrEmpty()) {
+                            message = "User email not found."
+                            return@FilledButton
+                        }
+
+                        isLoading = true
+                        message = ""
+
+                        val credential = EmailAuthProvider.getCredential(email, oldPassword)
+                        user.reauthenticate(credential)
+                            .addOnCompleteListener { reauth ->
+                                if (reauth.isSuccessful) {
+                                    user.updatePassword(newPassword)
+                                        .addOnCompleteListener { update ->
+                                            isLoading = false
+                                            message = if (update.isSuccessful) {
+                                                "Password updated successfully."
+                                            } else {
+                                                "Error: ${update.exception?.message}"
+                                            }
+                                        }
+                                } else {
+                                    isLoading = false
+                                    message = "Old password incorrect."
+                                }
+                            }
+                    },
+                    container = GoldDark,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                if (message.isNotEmpty()) {
+                    Text(text = message, color = Cocoa)
                 }
+
+                Spacer(Modifier.height(10.dp))
+
+                FilledButton(
+                    text = "Back",
+                    onClick = onDone,
+                    container = Cocoa,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
