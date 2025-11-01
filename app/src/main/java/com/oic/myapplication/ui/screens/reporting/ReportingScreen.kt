@@ -11,17 +11,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.oic.myapplication.services.database.DatabaseController
-import com.oic.myapplication.services.database.dummyDatasets.populateDatabaseFromAssets
 import com.oic.myapplication.services.database.models.DailyLog
-import kotlinx.coroutines.delay
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import com.oic.myapplication.ui.palette.*
+import kotlinx.coroutines.delay
+import java.time.*
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun ReportingScreen() {
@@ -58,10 +55,10 @@ fun ReportingScreen() {
         }
     }
 
+    // Formats
     val headerDateFmt = remember { DateTimeFormatter.ofPattern("EEEE, d MMMM, yyyy") }
-    val headerTimeFmt = remember { DateTimeFormatter.ofPattern("h:mm a") }
-    val cardDateFmt = remember { DateTimeFormatter.ofPattern("dd/MM/yy") }
-
+    val headerTimeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }   // 24h
+    val cardDateFmt   = remember { DateTimeFormatter.ofPattern("dd/MM/yy") } // dd/MM/yy for cards
 
     Column(
         Modifier
@@ -110,42 +107,54 @@ fun ReportingScreen() {
                 )
             }
         } else {
-            dailyLogs.sortedByDescending { LocalDate.parse(it.date) }.forEach { day ->
-                val date = LocalDate.parse(day.date)
-                val logs = day.logs
-                Surface(
-                    shape = CardXL,
-                    color = SurfaceWhite,
-                    tonalElevation = 1.dp,
-                    modifier = Modifier
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                        .fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "DATE: ${date.format(cardDateFmt)}",
-                            color = CocoaDeep,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text("Irrigation Logs:", color = Cocoa.copy(alpha = .8f))
-                        Spacer(Modifier.height(8.dp))
-                        logs.forEach { (_, logEntry) ->
-                            Column(Modifier.padding(vertical = 4.dp)) {
-                                Text("Start: ${logEntry.startTime}", color = Cocoa)
-                                Text("End: ${logEntry.endTime}", color = Cocoa)
-                                Text("Zones: ${logEntry.zone.joinToString(", ")}", color = Cocoa)
-                                Text("Litres: ${logEntry.litres}", color = Cocoa)
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                    thickness = DividerDefaults.Thickness,
-                                    color = Cocoa.copy(alpha = 0.2f)
+            // Sort by derived LocalDate (timestamp preferred, fallback to date string)
+            dailyLogs
+                .sortedByDescending { logLocalDate(it) }
+                .forEach { day ->
+                    val date = logLocalDate(day)
+                    val logs = day.logs
+                    Surface(
+                        shape = CardXL,
+                        color = SurfaceWhite,
+                        tonalElevation = 1.dp,
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                            .fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(
+                                "DATE: ${date.format(cardDateFmt)}",
+                                color = CocoaDeep,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("Irrigation Logs:", color = Cocoa.copy(alpha = .8f))
+                            Spacer(Modifier.height(8.dp))
+                            // Sort entries by parsed start time (ascending). Ties fall back to the raw string.
+                            logs.entries
+                                .sortedWith(
+                                    compareBy(
+                                        { parseLocalTimeOrNull(it.value.startTime) ?: LocalTime.MIDNIGHT },
+                                        { it.value.startTime ?: "" }
+                                    )
                                 )
-                            }
+                                .forEach { (_, logEntry) ->
+                                    Column(Modifier.padding(vertical = 4.dp)) {
+                                        Text("Start: ${to24h(logEntry.startTime)}", color = Cocoa)
+                                        Text("End: ${to24h(logEntry.endTime)}", color = Cocoa)
+                                        Text("Zones: ${logEntry.zone.joinToString(", ")}", color = Cocoa)
+                                        Text("Litres: ${logEntry.litres}", color = Cocoa)
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            thickness = DividerDefaults.Thickness,
+                                            color = Cocoa.copy(alpha = 0.2f)
+                                        )
+                                    }
+                                }
+
                         }
                     }
                 }
-            }
         }
     }
 }
@@ -165,4 +174,62 @@ private fun HeaderReporting(title: String, dateLine: String) {
 @Composable
 private fun ScreenPreview() {
     ReportingScreen()
+}
+
+/* -------- Helpers for new time/date handling -------- */
+
+private val DISPLAY_DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yy")
+
+/** Prefer Firestore timestamp; fallback to parsing DailyLog.date with common formats. */
+private fun logLocalDate(log: DailyLog): LocalDate {
+    log.timestamp?.let { ts ->
+        return ts.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+    val raw = log.date
+    val candidates = listOf(
+        DateTimeFormatter.ISO_LOCAL_DATE,          // "2025-09-28"
+        DateTimeFormatter.ofPattern("dd/MM/yy"),   // "28/09/25"
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")  // "28/09/2025"
+    )
+    for (fmt in candidates) {
+        try { return LocalDate.parse(raw, fmt) } catch (_: Throwable) {}
+    }
+    // last resort
+    return LocalDate.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE)
+}
+
+/** Render any stored time (12h or 24h, with/without seconds) as 24-hour 'HH:mm'. */
+private fun to24h(timeStr: String?): String {
+    if (timeStr.isNullOrBlank()) return ""
+    val outs = DateTimeFormatter.ofPattern("HH:mm")
+    val candidates = listOf(
+        "HH:mm:ss", "HH:mm",
+        "H:mm:ss", "H:mm",
+        "h:mm:ss a", "hh:mm:ss a",
+        "h:mm a", "hh:mm a"
+    ).map { DateTimeFormatter.ofPattern(it) }
+
+    for (fmt in candidates) {
+        try {
+            val t = LocalTime.parse(timeStr.trim(), fmt)
+            return t.format(outs)
+        } catch (_: Throwable) {}
+    }
+    // If nothing matched, just return the original (won't crash UI)
+    return timeStr
+}
+
+private fun parseLocalTimeOrNull(raw: String?): LocalTime? {
+    if (raw.isNullOrBlank()) return null
+    val candidates = listOf(
+        "HH:mm:ss", "HH:mm",
+        "H:mm:ss",  "H:mm",
+        "h:mm:ss a","hh:mm:ss a",
+        "h:mm a",   "hh:mm a"
+    ).map { DateTimeFormatter.ofPattern(it) }
+
+    for (fmt in candidates) {
+        try { return LocalTime.parse(raw.trim(), fmt) } catch (_: Throwable) {}
+    }
+    return null
 }

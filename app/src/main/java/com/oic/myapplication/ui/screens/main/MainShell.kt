@@ -26,7 +26,7 @@ import com.oic.myapplication.ui.palette.*
 import com.oic.myapplication.ui.screens.account.AccountScreen
 import com.oic.myapplication.ui.screens.notifications.NotificationsScreen
 import com.oic.myapplication.ui.screens.reporting.ReportingScreen
-import com.oic.myapplication.ui.screens.scheduling.MainHomeScreen
+import com.oic.myapplication.ui.screens.home.MainHomeScreen
 import com.oic.myapplication.ui.screens.scheduling.SchedulingScreen
 
 @Composable

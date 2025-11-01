@@ -1,19 +1,21 @@
 package com.oic.myapplication.services.database.models
 
-// todo: create enum zone
+/**
+ * Represents a single irrigation event.
+ */
 data class IrrigationLog(
+    /** Start time of the irrigation (24h format). */
     val startTime: String,
-    val endTime: String,
-    val zone: List<String>, // 0, 1
-    val litres: Int,
-    val scheduled: Boolean // if manual then false
-)
 
-//"logs": {
-//        "03:54:26": {
-//        "zone": ["0", "1"],
-//        "scheduled": false,
-//        "durationMins": 10,
-//        "startTime": "03:54:26",
-//        "endTime": "03:54:26"
-//    }
+    /** End time of the irrigation (24h format). */
+    val endTime: String,
+
+    /** Zones involved in this run (e.g., ["0", "1"]). */
+    val zone: List<String>,
+
+    /** Total litres used during this run. */
+    val litres: Int,
+
+    /** True if scheduled automatically, false if started manually. */
+    val scheduled: Boolean
+)

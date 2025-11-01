@@ -6,24 +6,51 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.toObject
-import com.oic.myapplication.services.database.models.DailyLog
-import com.oic.myapplication.services.database.models.Day
-import com.oic.myapplication.services.database.models.IrrigationLog
-import com.oic.myapplication.services.database.models.Period
-import com.oic.myapplication.services.database.models.ScheduleDay
-import com.oic.myapplication.services.database.models.ScheduleEntry
+import com.oic.myapplication.services.database.models.*
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlin.math.floor
+import kotlin.math.max
 
+// -------------------------
+// Firestore collection constants
+// -------------------------
+private const val LOG_COLLECTION = "IrrigationLogs"          // Stores DailyLog docs
+private const val SCHEDULE_COLLECTION = "IrrigationSchedules" // Stores weekly schedule templates
+private const val STATE_COLLECTION = "IrrigationState"        // (Legacy path for system state)
+private const val STATE_DOC       = "current"                 // (Legacy path for system state)
+private const val CURRENT_SITE_ID = "Site-01"                 // Default site document id
 
-private const val LOG_COLLECTION = "IrrigationLogs"
-private const val SCHEDULE_COLLECTION = "IrrigationSchedules"
-// ---- Add near the top with your other consts ----
-private const val STATE_COLLECTION = "IrrigationState"
-private const val STATE_DOC       = "current"
+// ---- Manual run flow model ----
+private const val FLOW_LPM = 27.0 // litres per minute
 
+// Local time formatting for logs (adjust to your desired format)
+private val TIME_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+/** Compute used litres since startAt -> now, floored to whole litres. */
+private fun usedLitresSince(startedAtMs: Long, nowMs: Long = System.currentTimeMillis()): Int {
+    val elapsedMin = max(0.0, (nowMs - startedAtMs) / 60_000.0)
+    return floor(elapsedMin * FLOW_LPM).toInt()
+}
+
+/** Convenience to convert epoch ms -> LocalDateTime in system zone. */
+private fun ldt(ms: Long): LocalDateTime =
+    LocalDateTime.ofInstant(Instant.ofEpochMilli(ms), ZoneId.systemDefault())
+
+/**
+ * Handles all Firestore operations related to:
+ *  - Daily irrigation logs
+ *  - Weekly irrigation schedules
+ *  - Manual irrigation state tracking
+ *
+ * Each helper encapsulates Firestore read/write logic and hides async complexity.
+ */
 class DatabaseController {
     companion object {
         private const val TAG = "Firestore"
@@ -31,8 +58,13 @@ class DatabaseController {
 
     private val db = FirebaseFirestore.getInstance()
 
+    // --------------------------------------------------------------------------
+    // DAILY LOG MANAGEMENT
+    // --------------------------------------------------------------------------
+
     /**
-     * Creates a daily log if it doesn't exist already.
+     * Creates a new DailyLog document (if it doesn't already exist) inside [LOG_COLLECTION].
+     * Each log represents all irrigation events for a specific date.
      */
     fun createDailyLog(dailyLog: DailyLog) {
         val docRef = db.collection(LOG_COLLECTION).document(dailyLog.date)
@@ -52,7 +84,9 @@ class DatabaseController {
     }
 
     /**
-     * Adds a new irrigation log entry to a daily log.
+     * Adds or updates a specific [IrrigationLog] entry inside an existing DailyLog.
+     * - Uses the `logs.{startTime}` field map for nested key-based storage.
+     * - Automatically creates the `logs` map if missing.
      */
     fun addIrrigationLog(dailyLog: DailyLog, irrigationLog: IrrigationLog) {
         db.collection(LOG_COLLECTION).document(dailyLog.date)
@@ -61,105 +95,166 @@ class DatabaseController {
             .addOnFailureListener { e -> Log.w(TAG, "Error adding log", e) }
     }
 
-    // ---- Add anywhere inside DatabaseController ----
+    // --------------------------------------------------------------------------
+    // MANUAL IRRIGATION STATE (REAL-TIME)
+    // --------------------------------------------------------------------------
 
     /**
-     * Start a MANUAL irrigation run.
-     * - Writes a state doc so UI can reflect manual running.
-     * - Creates today's DailyLog (if needed) and adds an IrrigationLog entry keyed by startTime.
+     * Listens in real-time to the "manualRun" state document.
+     * This reflects whether a manual irrigation is currently active.
      *
-     * @return onComplete: success(Unit) or failure(Throwable)
+     * @param onUpdate callback invoked with the latest [ManualRunDoc] (or null if missing)
+     * @return Firestore [ListenerRegistration] (should be removed on screen dispose)
      */
-    fun beginManualRun(
-        litres: Int,
-        onComplete: (Result<Unit>) -> Unit = {}
-    ) {
-        val now = com.google.firebase.Timestamp.now()
-        val zoneList = emptyList<String>() // no zones for now
-        val startStr = java.time.LocalTime.now().let {
-            java.time.format.DateTimeFormatter.ofPattern("h:mm a").format(it)
-        }
-
-        // derive expected runtime using same dummy flow model as UI
-        val minutes = kotlin.math.max(5, kotlin.math.ceil(litres / 2.0).toInt())
-        val endStr = java.time.LocalTime.now().plusMinutes(minutes.toLong()).let {
-            java.time.format.DateTimeFormatter.ofPattern("h:mm a").format(it)
-        }
-
-        // 1) Write current state
-        val stateData = hashMapOf(
-            "running"       to true,
-            "mode"          to "manual",
-            "litres"        to litres,
-            "startedAt"     to now,
-            "expectedEndIn" to minutes,
-            "startTimeKey"  to startStr // used to update endTime on stop
-        )
-
-        db.collection(STATE_COLLECTION).document(STATE_DOC)
-            .set(stateData, SetOptions.merge())
-            .addOnFailureListener { onComplete(Result.failure(it)) }
-            .addOnSuccessListener {
-                // 2) Also append a DailyLog row
-                val today = java.time.LocalDate.now().toString()
-                val dailyLog = com.oic.myapplication.services.database.models.DailyLog(
-                    date = today,
-                    timestamp = now,
-                    logs = emptyMap()
-                )
-                createDailyLog(dailyLog) // creates if missing (safe no-op if exists)
-
-                val irrigationLog = com.oic.myapplication.services.database.models.IrrigationLog(
-                    startTime = startStr,
-                    endTime   = endStr,            // predicted end; we’ll correct on stop
-                    scheduled = false,
-                    litres    = litres,
-                    zone      = zoneList
-                )
-                addIrrigationLog(dailyLog, irrigationLog)
-                onComplete(Result.success(Unit))
+    fun listenActiveManualRun(onUpdate: (ManualRunDoc?) -> Unit): ListenerRegistration {
+        return db.collection("sites")
+            .document(CURRENT_SITE_ID)
+            .collection("state")
+            .document("manualRun")
+            .addSnapshotListener { snap, err ->
+                if (err != null) return@addSnapshotListener
+                onUpdate(snap?.toObject<ManualRunDoc>())
             }
     }
 
     /**
-     * Stop a MANUAL irrigation run.
-     * - Sets running=false in the state doc.
-     * - Updates today's DailyLog {logs.<startTimeKey>.endTime} to NOW (if state contains that key).
+     * Fetches the current "manualRun" state document once (no listener).
+     * Useful for initial state load or polling fallback.
      */
-    fun endManualRun(
-        onComplete: (Result<Unit>) -> Unit = {}
-    ) {
-        val stateRef = db.collection(STATE_COLLECTION).document(STATE_DOC)
-        stateRef.get()
-            .addOnFailureListener { onComplete(Result.failure(it)) }
-            .addOnSuccessListener { snap ->
-                val startKey = snap.getString("startTimeKey")
-                val updates = hashMapOf<String, Any?>(
-                    "running" to false,
-                    "stoppedAt" to com.google.firebase.Timestamp.now()
-                )
-                stateRef.set(updates, SetOptions.merge())
+    fun getActiveManualRun(callback: (Result<ManualRunDoc?>) -> Unit) {
+        db.collection("sites")
+            .document(CURRENT_SITE_ID)
+            .collection("state")
+            .document("manualRun")
+            .get()
+            .addOnSuccessListener { d -> callback(Result.success(d.toObject<ManualRunDoc>())) }
+            .addOnFailureListener { e -> callback(Result.failure(e)) }
+    }
 
-                if (startKey.isNullOrBlank()) {
-                    onComplete(Result.success(Unit))
+    /**
+     * Begins a manual irrigation session.
+     * Writes a "manualRun" state doc with:
+     *  - `running = true`
+     *  - `totalLitres = user-selected amount`
+     *  - `startAtEpochMs = System.currentTimeMillis()`
+     *
+     * This doc becomes the single source of truth for all UIs observing irrigation state.
+     */
+    fun beginManualRun(totalLitres: Int, callback: (Result<Unit>) -> Unit) {
+        val payload = mapOf(
+            "running" to true,
+            "totalLitres" to totalLitres,
+            "startAtEpochMs" to System.currentTimeMillis(),
+            // clear any leftover state fields from previous runs
+            "usedLitres" to null,
+            "remainingLitres" to null,
+            "stoppedAtEpochMs" to null
+        )
+        db.collection("sites")
+            .document(CURRENT_SITE_ID)
+            .collection("state")
+            .document("manualRun")
+            .set(payload, SetOptions.merge())
+            .addOnSuccessListener { callback(Result.success(Unit)) }
+            .addOnFailureListener { e -> callback(Result.failure(e)) }
+    }
+
+    /**
+     * Ends a manual irrigation session and LOGS the actual used litres.
+     *
+     * Steps:
+     * 1) Read current /sites/{CURRENT_SITE_ID}/state/manualRun
+     * 2) If running, compute used/remaining based on startAtEpochMs and FLOW_LPM
+     * 3) Append a DailyLog entry (scheduled=false, litres=used) under IrrigationLogs/{date}
+     * 4) Update manualRun state: running=false, usedLitres, remainingLitres, stoppedAtEpochMs
+     *
+     * Safe to call even if not running (it will just mark running=false).
+     */
+    fun endManualRun(callback: (Result<Unit>) -> Unit) {
+        val stateRef = db.collection("sites")
+            .document(CURRENT_SITE_ID)
+            .collection("state")
+            .document("manualRun")
+
+        stateRef.get()
+            .addOnSuccessListener { snap ->
+                val state = snap.toObject<ManualRunDoc>()
+                val nowMs = System.currentTimeMillis()
+
+                // If no state doc or not running, just mark not-running and return
+                if (state == null || state.running != true) {
+                    stateRef.set(mapOf("running" to false), SetOptions.merge())
+                        .addOnSuccessListener { callback(Result.success(Unit)) }
+                        .addOnFailureListener { e -> callback(Result.failure(e)) }
                     return@addOnSuccessListener
                 }
 
-                // Update today’s DailyLog endTime to the real stop time
-                val today = java.time.LocalDate.now().toString()
-                val endNow = java.time.LocalTime.now().let {
-                    java.time.format.DateTimeFormatter.ofPattern("h:mm a").format(it)
-                }
-                db.collection(LOG_COLLECTION).document(today)
-                    .update("logs.$startKey.endTime", endNow)
-                    .addOnSuccessListener { onComplete(Result.success(Unit)) }
-                    .addOnFailureListener { onComplete(Result.failure(it)) }
+                // Compute used/remaining
+                val startMs = state.startAtEpochMs
+                val total = state.totalLitres
+                val used = usedLitresSince(startMs, nowMs).coerceAtMost(max(0, total))
+                val remaining = max(0, total - used)
+
+                // Build log row (manual runs are unscheduled)
+                val startLdt = ldt(startMs)
+                val endLdt   = ldt(nowMs)
+                val dateId   = DATE_FMT.format(startLdt)               // DailyLog doc id
+                val startStr = TIME_FMT.format(startLdt)               // key & field value
+                val endStr   = TIME_FMT.format(endLdt)
+
+                // Ensure DailyLog exists (lightweight create if missing)
+                val dailyLogDoc = db.collection(LOG_COLLECTION).document(dateId)
+                dailyLogDoc.get()
+                    .addOnSuccessListener { dailySnap ->
+                        if (!dailySnap.exists()) {
+                            val newDaily = DailyLog(
+                                date = dateId,
+                                timestamp = Timestamp.now(),
+                                logs = emptyMap()
+                            )
+                            dailyLogDoc.set(newDaily)
+                                .addOnFailureListener { e -> Log.w(TAG, "Failed to create DailyLog $dateId", e) }
+                        }
+
+                        // Write the actual manual-run log using your existing schema
+                        // We use 'litres = used' because that is what actually flowed.
+                        val logRow = IrrigationLog(
+                            zone = emptyList(),          // set real zones if you track them for manual runs
+                            scheduled = false,
+                            litres = used,
+                            startTime = startStr,
+                            endTime = endStr
+                        )
+
+                        // Upsert nested field logs.{startTime} = logRow
+                        dailyLogDoc
+                            .update("logs.$startStr", logRow)
+                            .addOnSuccessListener {
+                                // Finally, update the state doc with stop details
+                                val endPayload = mapOf(
+                                    "running" to false,
+                                    "usedLitres" to used,
+                                    "remainingLitres" to remaining,
+                                    "stoppedAtEpochMs" to nowMs
+                                )
+                                stateRef.set(endPayload, SetOptions.merge())
+                                    .addOnSuccessListener { callback(Result.success(Unit)) }
+                                    .addOnFailureListener { e -> callback(Result.failure(e)) }
+                            }
+                            .addOnFailureListener { e -> callback(Result.failure(e)) }
+                    }
+                    .addOnFailureListener { e -> callback(Result.failure(e)) }
             }
+            .addOnFailureListener { e -> callback(Result.failure(e)) }
     }
 
+    // --------------------------------------------------------------------------
+    // DAILY LOG RETRIEVAL
+    // --------------------------------------------------------------------------
 
     /**
-     * Retrieves all daily logs as a list.
+     * Retrieves **all** DailyLogs from Firestore.
+     * @return List<DailyLog> representing each date document under [LOG_COLLECTION].
      */
     suspend fun getAllDailyLogs(): List<DailyLog> = suspendCoroutine { continuation ->
         db.collection(LOG_COLLECTION)
@@ -187,7 +282,8 @@ class DatabaseController {
     }
 
     /**
-     * Retrieves a daily log for a specific date.
+     * Retrieves a single DailyLog document by date (non-suspending).
+     * Invokes [onResult] with the Firestore data map (or null if not found).
      */
     fun getDailyLog(date: String, onResult: (Map<String, Any>?) -> Unit) {
         db.collection(LOG_COLLECTION).document(date)
@@ -200,7 +296,8 @@ class DatabaseController {
     }
 
     /**
-     * Retrieves daily logs in a given date range.
+     * Retrieves all DailyLogs within a given date range (inclusive).
+     * Prints results to Logcat for inspection.
      */
     fun getRangeDailyLog(fromDate: String, toDate: String) {
         db.collection(LOG_COLLECTION)
@@ -219,15 +316,22 @@ class DatabaseController {
             .addOnFailureListener { e -> Log.w(TAG, "Error getting range logs", e) }
     }
 
-    /** Upsert a single period on a day doc (document id = day.name). */
+    // --------------------------------------------------------------------------
+    // IRRIGATION SCHEDULING (Weekly Templates)
+    // --------------------------------------------------------------------------
+
+    /**
+     * Inserts or updates a single [ScheduleEntry] period for a given [Day].
+     * Uses `.set(..., merge())` to avoid overwriting other periods.
+     */
     fun upsertSchedulePeriod(
         day: Day,
         period: Period,
         entry: ScheduleEntry,
         onComplete: (Result<Unit>) -> Unit = {}
     ) {
-        val docId = day.name  // "MONDAY", "TUESDAY", ...
-        val fieldName = period.toFieldName() // "morning" / "midday" / "afternoon"
+        val docId = day.name  // e.g. "MONDAY"
+        val fieldName = period.toFieldName() // "morning", "midday", "afternoon"
 
         val data = mapOf(
             "day" to day,
@@ -237,12 +341,15 @@ class DatabaseController {
 
         db.collection(SCHEDULE_COLLECTION)
             .document(docId)
-            .set(data, SetOptions.merge())   // merge so other periods aren't lost
+            .set(data, SetOptions.merge())
             .addOnSuccessListener { onComplete(Result.success(Unit)) }
             .addOnFailureListener { onComplete(Result.failure(it)) }
     }
 
-    /** Remove one period map from a day (keeps the others). */
+    /**
+     * Deletes one period (e.g. "morning") from a [ScheduleDay] document.
+     * Other existing periods remain intact.
+     */
     fun deleteSchedulePeriod(
         day: Day,
         period: Period,
@@ -263,7 +370,10 @@ class DatabaseController {
             .addOnFailureListener { onComplete(Result.failure(it)) }
     }
 
-    /** Get a whole day doc (with morning/midday/afternoon entries if present). */
+    /**
+     * Retrieves a single [ScheduleDay] document (by enum day name).
+     * @param day e.g. Day.MONDAY
+     */
     fun getScheduleDay(
         day: Day,
         onComplete: (Result<ScheduleDay?>) -> Unit
@@ -282,7 +392,10 @@ class DatabaseController {
             .addOnFailureListener { onComplete(Result.failure(it)) }
     }
 
-    /** Convenience: save multiple period entries in one go (merge). */
+    /**
+     * Upserts multiple periods (morning/midday/afternoon) for one day in a single call.
+     * Automatically merges existing data and updates `updatedAt` timestamp.
+     */
     fun upsertDay(
         day: Day,
         morning: ScheduleEntry? = null,
@@ -312,19 +425,18 @@ class DatabaseController {
             }
     }
 
-    /** Map enum to the field key we store in Firestore. */
-    private fun Period.toFieldName(): String = when (this) {
-        Period.MORNING -> "morning"
-        Period.MIDDAY -> "midday"
-        Period.AFTERNOON -> "afternoon"
-    }
+    // --------------------------------------------------------------------------
+    // REAL-TIME UPDATES
+    // --------------------------------------------------------------------------
 
-    /** Realtime updates for all schedule-day docs (optional helper). */
+    /**
+     * Subscribes to ALL schedule-day documents in [SCHEDULE_COLLECTION].
+     * @param onUpdate Emits a sorted list of [ScheduleDay] on every change.
+     */
     fun getAllSchedules(
         onUpdate: (Result<List<ScheduleDay>>) -> Unit
     ): ListenerRegistration {
-        return FirebaseFirestore.getInstance()
-            .collection(SCHEDULE_COLLECTION)
+        return db.collection(SCHEDULE_COLLECTION)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     onUpdate(Result.failure(err))
@@ -345,6 +457,14 @@ class DatabaseController {
             }
     }
 
+    // --------------------------------------------------------------------------
+    // INTERNAL UTILITIES
+    // --------------------------------------------------------------------------
+
+    /** Maps enum [Period] to its Firestore field name key. */
+    private fun Period.toFieldName(): String = when (this) {
+        Period.MORNING -> "morning"
+        Period.MIDDAY -> "midday"
+        Period.AFTERNOON -> "afternoon"
+    }
 }
-
-

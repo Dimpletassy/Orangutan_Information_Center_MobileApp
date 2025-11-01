@@ -1,45 +1,16 @@
-package com.oic.myapplication.ui.screens.scheduling
+package com.oic.myapplication.ui.screens.home
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,12 +36,14 @@ import com.oic.myapplication.ui.palette.GoldLight
 import com.oic.myapplication.ui.palette.Latte
 import com.oic.myapplication.ui.palette.Pill
 import com.oic.myapplication.ui.palette.SurfaceWhite
-import com.oic.myapplication.ui.screens.weather.WeatherViewModel
 import com.oic.myapplication.ui.screens.notifications.NotificationsRepo
+import com.oic.myapplication.ui.screens.weather.WeatherViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
@@ -208,7 +181,7 @@ fun MainHomeScreen(
     }
 
     // Irrigation run state
-    val isIrrigating by IrrigationRepo.isRunning.collectAsState()
+    val isIrrigating by _root_ide_package_.com.oic.myapplication.ui.screens.scheduling.IrrigationRepo.isRunning.collectAsState()
     var showSplash by remember { mutableStateOf(false) }
 
     // Weather
@@ -229,6 +202,7 @@ fun MainHomeScreen(
     var recentDate by remember { mutableStateOf<String?>(null) }
     var recentLog by remember { mutableStateOf<IrrigationLog?>(null) }
 
+    // Robust most-recent selection
     LaunchedEffect(Unit) {
         recentLoading = true; recentError = null
         try {
@@ -237,20 +211,35 @@ fun MainHomeScreen(
                 recentDate = null
                 recentLog = null
             } else {
-                // Most recent day by ISO date (yyyy-MM-dd)
-                val latestDay: DailyLog = all.maxBy { it.date }
-                recentDate = latestDay.date
+                val flattened: List<Pair<LocalDate, IrrigationLog>> = all.flatMap { day ->
+                    val date = logLocalDate(day)
+                    day.logs.values.map { log -> date to log }
+                }
 
-                // Determine the "latest" log within that day
-                val timeFmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
-                fun parseTime(s: String?): java.time.LocalTime? =
-                    runCatching { java.time.LocalTime.parse((s ?: "").uppercase(), timeFmt) }.getOrNull()
+                fun endInstant(pair: Pair<LocalDate, IrrigationLog>): Long {
+                    val (date, log) = pair
+                    val endT = parseLocalTimeOrNull(log.endTime) ?: parseLocalTimeOrNull(log.startTime)
+                    return if (endT != null) toEpochMs(date, endT) else Long.MIN_VALUE
+                }
+                fun startInstant(pair: Pair<LocalDate, IrrigationLog>): Long {
+                    val (date, log) = pair
+                    val startT = parseLocalTimeOrNull(log.startTime)
+                    return if (startT != null) toEpochMs(date, startT) else Long.MIN_VALUE
+                }
 
-                recentLog = latestDay.logs.values
-                    .maxWithOrNull(
-                        compareBy<IrrigationLog> { parseTime(it.endTime) ?: java.time.LocalTime.MIN }
-                            .thenBy { parseTime(it.startTime) ?: java.time.LocalTime.MIN }
-                    )
+                val latest = flattened.maxWithOrNull(
+                    compareBy<Pair<LocalDate, IrrigationLog>> { endInstant(it) }
+                        .thenBy { startInstant(it) }
+                )
+
+                if (latest == null) {
+                    recentDate = null
+                    recentLog = null
+                } else {
+                    val (ld, log) = latest
+                    recentDate = ld.toString() // ISO yyyy-MM-dd
+                    recentLog = log
+                }
             }
         } catch (t: Throwable) {
             recentError = t.message
@@ -303,11 +292,11 @@ fun MainHomeScreen(
             ) {
                 // Current status card (manual start/stop)
                 item {
-                    CurrentStatusCard(
+                    _root_ide_package_.com.oic.myapplication.ui.screens.scheduling.CurrentStatusCard(
                         isIrrigating = isIrrigating,
                         onToggle = { start ->
                             if (start) {
-                                IrrigationRepo.start()
+                                _root_ide_package_.com.oic.myapplication.ui.screens.scheduling.IrrigationRepo.start()
                                 headUp = NotificationEventUi(
                                     title = "Started",
                                     message = "Manual irrigation system is now running",
@@ -315,7 +304,7 @@ fun MainHomeScreen(
                                 )
                                 showSplash = true
                             } else {
-                                IrrigationRepo.stop()
+                                _root_ide_package_.com.oic.myapplication.ui.screens.scheduling.IrrigationRepo.stop()
                                 headUp = NotificationEventUi(
                                     title = "Stopped",
                                     message = "Manual irrigation has been stopped",
@@ -348,7 +337,10 @@ fun MainHomeScreen(
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier.size(28.dp).clip(CircleShape).background(GoldLight),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(GoldLight),
                             contentAlignment = Alignment.Center
                         ) { Text("▢") }
                         Spacer(Modifier.width(8.dp))
@@ -426,9 +418,8 @@ fun MainHomeScreen(
                                 log.endTime.takeIf { it.isNotBlank() }
                             ).joinToString("–")
 
-                            // ✨ Only change: format recentDate (yyyy-MM-dd) to dd/MM/yy
                             val formattedDate = runCatching {
-                                java.time.LocalDate.parse(recentDate).format(DateTimeFormatter.ofPattern("dd/MM/yy"))
+                                LocalDate.parse(recentDate).format(DateTimeFormatter.ofPattern("dd/MM/yy"))
                             }.getOrElse { "—" }
 
                             Surface(
@@ -453,7 +444,6 @@ fun MainHomeScreen(
                 }
 
                 item { Spacer(Modifier.height(18.dp)) }
-
             }
         }
 
@@ -534,27 +524,6 @@ private fun TopBar(
     }
 }
 
-/* --- Misc shared UI --- */
-
-@Composable
-private fun ActivityTile(title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = CardXL,
-        color = SurfaceWhite,
-        tonalElevation = 1.dp,
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .fillMaxWidth()
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold, color = CocoaDeep)
-            Spacer(Modifier.height(4.dp))
-            Text(subtitle, color = Cocoa.copy(alpha = .6f))
-        }
-    }
-}
-
 /* ---------------- Preview ---------------- */
 
 @Preview(showBackground = true, showSystemUi = true)
@@ -566,4 +535,38 @@ private fun ScreenPreview() {
         onOpenNotifications = {},
         onBackToSites = {}
     )
+}
+
+/* ---------------- Helpers for 'Recent Activity' selection ---------------- */
+
+private fun logLocalDate(log: DailyLog): LocalDate {
+    log.timestamp?.let { ts ->
+        return ts.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+    val raw = log.date
+    val candidates = listOf(
+        DateTimeFormatter.ISO_LOCAL_DATE,
+        DateTimeFormatter.ofPattern("dd/MM/yy"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    )
+    for (fmt in candidates) {
+        try { return LocalDate.parse(raw, fmt) } catch (_: Throwable) {}
+    }
+    return LocalDate.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE)
+}
+
+private fun parseLocalTimeOrNull(raw: String?): LocalTime? {
+    if (raw.isNullOrBlank()) return null
+    val patterns = listOf(
+        "HH:mm:ss", "HH:mm", "H:mm:ss", "H:mm",
+        "h:mm:ss a", "hh:mm:ss a", "h:mm a", "hh:mm a"
+    )
+    for (p in patterns) {
+        try { return LocalTime.parse(raw.trim().uppercase(), DateTimeFormatter.ofPattern(p)) } catch (_: Throwable) {}
+    }
+    return null
+}
+
+private fun toEpochMs(date: LocalDate, time: LocalTime, zone: ZoneId = ZoneId.systemDefault()): Long {
+    return date.atTime(time).atZone(zone).toInstant().toEpochMilli()
 }

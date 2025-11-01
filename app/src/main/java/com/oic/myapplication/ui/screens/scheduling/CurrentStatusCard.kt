@@ -10,38 +10,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oic.myapplication.services.database.DatabaseController
 import com.oic.myapplication.services.database.models.Day
+import com.oic.myapplication.services.database.models.ManualRunDoc
 import com.oic.myapplication.services.database.models.ScheduleDay
 import com.oic.myapplication.services.database.models.ScheduleEntry
-import com.oic.myapplication.ui.palette.CardXL
-import com.oic.myapplication.ui.palette.Cocoa
-import com.oic.myapplication.ui.palette.CocoaDeep
-import com.oic.myapplication.ui.palette.GoldDark
-import com.oic.myapplication.ui.palette.Latte
-import com.oic.myapplication.ui.palette.Pill
-import com.oic.myapplication.ui.palette.SurfaceWhite
-import kotlinx.coroutines.Job
+import com.oic.myapplication.ui.palette.*
+import com.google.firebase.firestore.ListenerRegistration
+import com.oic.myapplication.ui.screens.notifications.NotificationsRepo   // ⬅️ notifications
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.time.DayOfWeek
-import java.time.Duration
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.ZoneId
+import java.time.*
 import java.time.format.DateTimeFormatter
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 
 /**
- * Current status card that:
- *  - Shows whether irrigation is running (manual or scheduled)
- *  - Lets user manually Start/Stop via [onToggle]
- *  - Auto-detects "scheduled running" by checking today's schedule and current time.
- *  - Auto-stops manual runs based on the flow model (27 L/min, min 5 min).
- *  - Displays the remaining litres while a run is active and stops manual when it reaches 0.
- *
- * @param isIrrigating Whether manual irrigation is currently running (from your state holder).
- * @param onToggle Called when Start/Stop is pressed (true = start, false = stop).
+ * - Reads/listens to the active manual run doc from Firestore.
+ * - Remaining litres = f(now, startAt, totalLitres) so it survives navigation.
+ * - Pushes small in-memory notifications for manual & scheduled state changes.
  */
 @Composable
 fun CurrentStatusCard(
@@ -50,7 +35,6 @@ fun CurrentStatusCard(
     modifier: Modifier = Modifier
 ) {
     val db = remember { DatabaseController() }
-    val scope = rememberCoroutineScope()
 
     // Live clock (30s tick)
     val zone = remember { ZoneId.systemDefault() }
@@ -61,8 +45,9 @@ fun CurrentStatusCard(
             delay(30_000)
         }
     }
+    val time12 = remember(now) { now.format(DateTimeFormatter.ofPattern("h:mm a")) }
 
-    // Load today's schedule doc
+    // === 1) Load today's schedule ===
     var todayDoc by remember { mutableStateOf<ScheduleDay?>(null) }
     var loading by remember { mutableStateOf(true) }
     var lastErr by remember { mutableStateOf<String?>(null) }
@@ -78,7 +63,6 @@ fun CurrentStatusCard(
             DayOfWeek.SUNDAY -> Day.SUNDAY
         }
     }
-
     LaunchedEffect(todayEnum) {
         loading = true; lastErr = null
         db.getScheduleDay(todayEnum) { res ->
@@ -87,67 +71,71 @@ fun CurrentStatusCard(
         }
     }
 
-    // Detect scheduled run "now" and identify active period if any
-    val activeScheduled by remember(now, todayDoc) {
-        mutableStateOf(findActiveScheduledRun(todayDoc, now))
+    // === 2) Real-time manual run state from DB ===
+    var manualDoc by remember { mutableStateOf<ManualRunDoc?>(null) }
+
+    // Instant updates
+    DisposableEffect(Unit) {
+        var registration: ListenerRegistration? = null
+        try {
+            registration = db.listenActiveManualRun { docOrNull ->
+                manualDoc = docOrNull
+            }
+        } catch (_: Throwable) { /* listener optional */ }
+        onDispose { registration?.remove() }
     }
+
+    // === 3) Compute remaining litres from DB-backed manual run ===
+    val manualRemaining: Int? = remember(manualDoc, now) {
+        val d = manualDoc ?: return@remember null
+        if (!d.running) return@remember null
+        val startedAt = LocalDateTime.ofInstant(Instant.ofEpochMilli(d.startAtEpochMs), zone)
+        remainingLitresAt(d.totalLitres, startedAt, now)
+    }
+
+    // === 4) Scheduled run detection (derived) ===
+    val activeScheduled = remember(now, todayDoc) { findActiveScheduledRun(todayDoc, now) }
     val scheduledRunning = activeScheduled != null
 
-    // Manual litres quick-pick (used for manual auto-stop & log)
-    var manualLitres by remember { mutableStateOf(20) }
+    // Notify when scheduled state flips (start/stop)
+    var prevScheduled by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(scheduledRunning) {
+        val prev = prevScheduled
+        prevScheduled = scheduledRunning
+        if (prev == null) return@LaunchedEffect  // ignore first snapshot
+        if (scheduledRunning && !prev) {
+            // Started
+            val litres = activeScheduled?.litres
+            val msg = buildString {
+                append("Started at $time12")
+                if (litres != null) append(" • ${litres}L")
+            }
+            NotificationsRepo.pushStart(msg)
+        } else if (!scheduledRunning && prev) {
+            // Stopped
+            NotificationsRepo.pushStop("Stopped at $time12")
+        }
+    }
 
-    // Track manual start to compute remaining litres locally
-    var manualStartAt by remember { mutableStateOf<LocalDateTime?>(null) }
-    var manualTotalLitres by remember { mutableStateOf(0) }
+    // === 5) UI selections ===
+    var manualLitresPick by remember { mutableStateOf(20) }
 
-    // Auto-stop timer for manual runs
-    var manualJob by remember { mutableStateOf<Job?>(null) }
+    // === 6) Auto-stop guard based on DB state ===
+    LaunchedEffect(manualRemaining) {
+        val r = manualRemaining
+        if (r != null && r <= 0) {
+            db.endManualRun { /* optionally surface errors */ }
+            NotificationsRepo.push("Manual irrigation finished", "Auto-stopped at $time12", danger = false)
+            onToggle(false)
+        }
+    }
 
-    val isRunning = isIrrigating || scheduledRunning
+    val isManualRunning = manualDoc?.running == true
+    val isRunning = isManualRunning || scheduledRunning
     val statusLabel = when {
         scheduledRunning -> "Running (Scheduled)"
-        isIrrigating     -> "Running (Manual)"
+        isManualRunning  -> "Running (Manual)"
         else             -> "Stopped"
-    }
-
-    // Compute remaining litres for the active run (manual > scheduled > none)
-    val remainingLitres: Int? = when {
-        isIrrigating && manualStartAt != null -> {
-            remainingLitresAt(
-                totalLitres = manualTotalLitres,
-                startedAt = manualStartAt!!,
-                now = now
-            )
-        }
-        scheduledRunning -> {
-            val (start, litres) = activeScheduled!!
-            remainingLitresAt(
-                totalLitres = litres,
-                startedAt = start,
-                now = now
-            )
-        }
-        else -> null
-    }
-
-    // Guard to stop manual instantly when remaining litres hit 0 (even if timer drifted/app resumed)
-    var autoStopping by remember { mutableStateOf(false) }
-    LaunchedEffect(remainingLitres, isIrrigating) {
-        if (!autoStopping &&
-            isIrrigating &&
-            manualStartAt != null &&
-            remainingLitres != null &&
-            remainingLitres <= 0
-        ) {
-            autoStopping = true
-            manualJob?.cancel()
-            manualJob = null
-            manualStartAt = null
-            manualTotalLitres = 0
-            db.endManualRun { /* optionally toast/log errors */ }
-            onToggle(false)
-            autoStopping = false
-        }
     }
 
     val chipBg = if (isRunning) Latte else SurfaceWhite.copy(alpha = 0.85f)
@@ -161,15 +149,9 @@ fun CurrentStatusCard(
         modifier = modifier
     ) {
         Column(Modifier.padding(18.dp)) {
-            Text(
-                "Current Status",
-                color = Cocoa.copy(alpha = .85f),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text("Current Status", color = Cocoa.copy(alpha = .85f), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
 
-            // Status row
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -186,8 +168,15 @@ fun CurrentStatusCard(
                 }
             }
 
-            // Remaining litres row (only when running)
-            if (remainingLitres != null) {
+            // Remaining litres row (manual > scheduled)
+            val displayRemaining = manualRemaining ?: run {
+                if (scheduledRunning) {
+                    val (start, litres) = activeScheduled!!
+                    remainingLitresAt(litres, start, now)
+                } else null
+            }
+
+            if (displayRemaining != null) {
                 Spacer(Modifier.height(8.dp))
                 Row(
                     Modifier.fillMaxWidth(),
@@ -197,7 +186,7 @@ fun CurrentStatusCard(
                     Text("Remaining litres", color = Cocoa, fontWeight = FontWeight.SemiBold)
                     Surface(shape = Pill, color = SurfaceWhite.copy(alpha = 0.9f), shadowElevation = 0.dp) {
                         Text(
-                            "${max(0, remainingLitres)} L",
+                            "${max(0, displayRemaining)} L",
                             color = CocoaDeep,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             fontWeight = FontWeight.SemiBold
@@ -215,8 +204,6 @@ fun CurrentStatusCard(
             }
 
             Spacer(Modifier.height(12.dp))
-
-            // Manual litres quick-pick (disabled while a scheduled run is active)
             Text("Manual run litres", color = Cocoa, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
 
@@ -226,10 +213,10 @@ fun CurrentStatusCard(
                 maxItemsInEachRow = 5
             ) {
                 listOf(10, 20, 30, 40, 50).forEach { n ->
-                    val sel = n == manualLitres
+                    val sel = n == manualLitresPick
                     FilledTonalButton(
-                        onClick = { manualLitres = n },
-                        enabled = !scheduledRunning,
+                        onClick = { manualLitresPick = n },
+                        enabled = !scheduledRunning && !isManualRunning,
                         shape = Pill,
                         colors = if (sel)
                             ButtonDefaults.filledTonalButtonColors(containerColor = GoldDark, contentColor = SurfaceWhite)
@@ -241,50 +228,30 @@ fun CurrentStatusCard(
                 }
             }
 
-
             Spacer(Modifier.height(16.dp))
 
-            // Start / Stop manual with auto-stop according to flow model
             Button(
                 onClick = {
-                    if (isIrrigating) {
-                        // Stop manual early
-                        manualJob?.cancel()
-                        manualJob = null
-                        manualStartAt = null
-                        manualTotalLitres = 0
-                        db.endManualRun { /* optionally surface errors */ }
+                    if (isManualRunning) {
+                        db.endManualRun { /* optionally errors */ }
+                        NotificationsRepo.push("Manual irrigation stopped", "Stopped at $time12")
                         onToggle(false)
                     } else {
-                        // Start manual
-                        val mins = runtimeMinutes(manualLitres)
-                        db.beginManualRun(manualLitres) { /* optionally surface errors */ }
+                        db.beginManualRun(manualLitresPick) { /* optionally errors */ }
+                        NotificationsRepo.push("Manual irrigation started", "Started at $time12 • ${manualLitresPick}L")
                         onToggle(true)
-
-                        manualStartAt = now
-                        manualTotalLitres = manualLitres
-
-                        // restart timer if existed
-                        manualJob?.cancel()
-                        manualJob = scope.launch {
-                            delay(mins * 60_000L)
-                            db.endManualRun { /* optionally surface errors */ }
-                            manualStartAt = null
-                            manualTotalLitres = 0
-                            onToggle(false)
-                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = CardXL,
-                enabled = !loading, // still allow if schedule failed to load
+                enabled = !loading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isIrrigating) Latte else GoldDark,
-                    contentColor = if (isIrrigating) CocoaDeep else SurfaceWhite
+                    containerColor = if (isManualRunning) Latte else GoldDark,
+                    contentColor = if (isManualRunning) CocoaDeep else SurfaceWhite
                 )
             ) {
                 Text(
-                    if (isIrrigating) "Stop manual irrigation" else "Start manual irrigation",
+                    if (isManualRunning) "Stop manual irrigation" else "Start manual irrigation",
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -292,14 +259,14 @@ fun CurrentStatusCard(
     }
 }
 
-/* ---------------- Helpers ---------------- */
+/* ---------------- Helpers & types ---------------- */
 
 private const val FLOW_LPM = 27.0 // litres per minute
 
-/** Flow model: ~27 L/min, minimum 5 minutes. According to the Engineering team*/
+/** Flow model: ~27 L/min, minimum 5 minutes. */
 private fun runtimeMinutes(litres: Int): Int = max(5, ceil(litres / FLOW_LPM).toInt())
 
-/** Remaining litres given a start time and total litres at 27 L/min (floored to int, never below 0). */
+/** Remaining litres (floored to int, never below 0). */
 private fun remainingLitresAt(
     totalLitres: Int,
     startedAt: LocalDateTime,
@@ -312,10 +279,7 @@ private fun remainingLitresAt(
 
 private data class ActiveRun(val start: LocalDateTime, val litres: Int)
 
-/**
- * Returns the currently active scheduled run (if any) with its start time and litres.
- * Active = now ∈ [startTime, startTime + runtime(litres)].
- */
+/** Returns the currently active scheduled run (if any) with its start time and litres. */
 private fun findActiveScheduledRun(
     dayDoc: ScheduleDay?,
     now: LocalDateTime
@@ -339,10 +303,3 @@ private fun findActiveScheduledRun(
 
     return active(dayDoc.morning) ?: active(dayDoc.midday) ?: active(dayDoc.afternoon)
 }
-
-/** Returns true if any enabled scheduled period is currently active. */
-@Suppress("unused")
-private fun isAnyPeriodRunningNow(
-    dayDoc: ScheduleDay?,
-    now: LocalDateTime
-): Boolean = findActiveScheduledRun(dayDoc, now) != null
