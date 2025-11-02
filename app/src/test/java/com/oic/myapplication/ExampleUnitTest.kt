@@ -1,9 +1,7 @@
 package com.oic.myapplication
 
 import android.util.Log
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.firestore.FirebaseFirestore
-import com.oic.myapplication.services.database.databaseController
 import org.junit.Test
 
 import org.junit.Assert.*
@@ -17,12 +15,12 @@ import java.util.concurrent.TimeUnit
  * See [testing documentation](http://d.android.com/tools/testing).
  */
 
-@RunWith(AndroidJUnit4::class)
-class ExampleUnitTest {
-    @Test
-    fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
-    }
+//@RunWith(AndroidJUnit4::class)
+//class ExampleUnitTest {
+//    @Test
+//    fun addition_isCorrect() {
+//        assertEquals(4, 2 + 2)
+//    }
 //    private val dbController = databaseController()
 //
 //    @Test
@@ -51,4 +49,4 @@ class ExampleUnitTest {
 //        assertNotNull("Logs should not be null", logs)
 //        assertTrue("Logs should have at least one entry", logs!!.isNotEmpty())
 //    }
-}
+//}

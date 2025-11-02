@@ -1,0 +1,21 @@
+The current database setup is using Firebase's Firestore. Its a NoSQL cloud database that syncs irrigation system status, and stores irrigation history in real time.
+
+To setup the database, this android app project must be added to a Firebase project. Please refer to the README.md on how to do this.
+Once added to Firebase:
+- On Firebase console > Build > Firestore Database > Create Database
+- Choose which server is closest to you
+- Pick 'Start in Production Mode'
+- Update your database rules as follows:
+
+```
+rules_version = '2';
+      service cloud.firestore {
+        match /databases/{database}/documents {
+          match /{document=**} {
+            allow read, write: if request.auth != null;
+          }
+        }
+      }
+```
+
+The rules above restrict access to your database to only signed in users within the app
